@@ -28,6 +28,7 @@ import {
     Star,
     Flag,
     Link,
+    BarChart2,
 } from 'lucide-react';
 import { useMediaUpload } from '../../hooks/useMediaUpload';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -536,6 +537,10 @@ export default function ChatPage() {
                                 <button onClick={() => { fileInputRef.current?.setAttribute('capture', 'environment'); fileInputRef.current?.setAttribute('accept', 'image/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
                                     <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center group-hover:scale-110 transition-transform"><CameraIcon size={20} /></div>
                                     <span className="text-[10px] text-campus-muted group-hover:text-white">Camera</span>
+                                </button>
+                                <button onClick={() => { alert('Poll feature coming soon in Phase 3'); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
+                                    <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform"><BarChart2 size={20} /></div>
+                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Poll</span>
                                 </button>
                                 <button onClick={() => { fileInputRef.current?.setAttribute('accept', 'audio/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
                                     <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform"><Music size={20} /></div>

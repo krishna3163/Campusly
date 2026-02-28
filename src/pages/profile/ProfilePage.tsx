@@ -112,7 +112,17 @@ export default function ProfilePage() {
                             </div>
 
                             <h1 className="text-2xl font-black text-white mb-1">{profile?.display_name || 'Anonymous User'}</h1>
-                            <p className="text-sm text-campus-muted font-medium mb-6">{user?.email}</p>
+                            <p className="text-sm text-campus-muted font-medium mb-4">{user?.email}</p>
+
+                            {profile?.activity_status && (
+                                <div className="mb-6 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-bold shadow-glow">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+                                    </span>
+                                    Currently: {profile.activity_status}
+                                </div>
+                            )}
 
                             <div className="flex flex-wrap justify-center gap-2 mb-8">
                                 <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase text-brand-400 flex items-center gap-1.5 leading-none">
@@ -255,12 +265,13 @@ function EditProfileDialog({ profile, onClose, onSaved }: { profile: UserProfile
     const [bio, setBio] = useState(profile.bio || '');
     const [branch, setBranch] = useState(profile.branch || '');
     const [semester, setSemester] = useState(profile.semester?.toString() || '');
+    const [activity, setActivity] = useState((profile as any).activity_status || 'active');
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            const updates = { display_name: name, bio, branch, semester: parseInt(semester) || 1, updated_at: new Date().toISOString() };
+            const updates = { display_name: name, bio, branch, activity_status: activity, semester: parseInt(semester) || 1, updated_at: new Date().toISOString() };
             const { data } = await insforge.database.from('profiles').update(updates).eq('id', profile.id).select().single();
             if (data) onSaved(data as UserProfile);
         } catch (err) {
@@ -285,6 +296,18 @@ function EditProfileDialog({ profile, onClose, onSaved }: { profile: UserProfile
                     <div className="space-y-1.5">
                         <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Status Bio</label>
                         <textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 h-24 resize-none text-white text-sm" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Current Activity Status (Visible to Friends/Classmates)</label>
+                        <select value={activity} onChange={e => setActivity(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 text-white appearance-none">
+                            <option value="active" className="bg-campus-dark text-white">Active</option>
+                            <option value="studying" className="bg-campus-dark text-white">📖 Studying</option>
+                            <option value="coding" className="bg-campus-dark text-white">💻 Coding</option>
+                            <option value="movie" className="bg-campus-dark text-white">🍿 Watching Movie</option>
+                            <option value="game" className="bg-campus-dark text-white">🎮 Gaming</option>
+                            <option value="timepass" className="bg-campus-dark text-white">✨ Timepass</option>
+                            <option value="dnd" className="bg-campus-dark text-white">⛔ Do Not Disturb</option>
+                        </select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">

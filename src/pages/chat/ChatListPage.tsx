@@ -12,6 +12,7 @@ import {
     UsersRound,
     Settings,
     CheckCheck,
+    Archive,
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 
@@ -22,7 +23,7 @@ export default function ChatListPage() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterTab, setFilterTab] = useState<'all' | 'unread' | 'groups' | 'channels'>('all');
+    const [filterTab, setFilterTab] = useState<'all' | 'unread' | 'groups' | 'channels' | 'archived'>('all');
     const [showNewChat, setShowNewChat] = useState<'direct' | 'group' | 'channel' | null>(null);
     const [showMenu, setShowMenu] = useState(false);
 
@@ -106,9 +107,17 @@ export default function ChatListPage() {
         if (!matchesSearch) return false;
 
         if (filterTab === 'unread') return (c.unread_count || 0) > 0;
-        if (filterTab === 'groups') return c.type !== 'direct';
-        return true;
+        if (filterTab === 'groups') return c.type === 'group';
+        if (filterTab === 'channels') return c.type === 'broadcast';
+        if (filterTab === 'archived') return (c as any).is_archived === true;
+        return !(c as any).is_archived;
     });
+
+    const handleArchive = (e: React.MouseEvent, convId: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setConversations(prev => prev.map(c => c.id === convId ? { ...c, is_archived: !(c as any).is_archived } : c));
+    };
 
     const getConversationName = (conv: Conversation) => {
         if (conv.type === 'direct') return conv.other_user?.display_name || 'Unknown User';
@@ -199,6 +208,7 @@ export default function ChatListPage() {
                     <button onClick={() => setFilterTab('unread')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${filterTab === 'unread' ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-white/[0.03] hover:bg-white/10 text-campus-muted hover:text-white border border-transparent'}`}>Unread</button>
                     <button onClick={() => setFilterTab('groups')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${filterTab === 'groups' ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-white/[0.03] hover:bg-white/10 text-campus-muted hover:text-white border border-transparent'}`}>Groups</button>
                     <button onClick={() => setFilterTab('channels')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${filterTab === 'channels' ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-white/[0.03] hover:bg-white/10 text-campus-muted hover:text-white border border-transparent'}`}>Channels</button>
+                    <button onClick={() => setFilterTab('archived')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${filterTab === 'archived' ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-white/[0.03] hover:bg-white/10 text-campus-muted hover:text-white border border-transparent'}`}>Archived</button>
                 </div>
             </header>
 
@@ -226,48 +236,57 @@ export default function ChatListPage() {
                     filteredConversations.map((conv) => {
                         const isActive = chatId === conv.id;
                         return (
-                            <button
-                                key={conv.id}
-                                onClick={() => navigate(`/app/chats/${conv.id}`)}
-                                className={`w-full flex items-center gap-3 px-4 py-3 border-l-[3px] transition-all duration-200 ${isActive
-                                    ? 'bg-brand-500/10 border-brand-500'
-                                    : 'bg-transparent border-transparent hover:bg-white/[0.03]'
-                                    }`}
-                            >
-                                <div className="relative flex-shrink-0">
-                                    {getConversationAvatar(conv) ? (
-                                        <img src={getConversationAvatar(conv)!} className="w-12 h-12 rounded-full object-cover shadow-sm" alt="" />
-                                    ) : (
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                                            {getConversationName(conv).charAt(0)}
-                                        </div>
-                                    )}
-                                    {conv.type === 'direct' && (
-                                        <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-campus-dark" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0 text-left">
-                                    <div className="flex justify-between items-baseline mb-0.5">
-                                        <h3 className={`font-semibold text-sm truncate ${isActive ? 'text-brand-400' : 'text-white'} flex items-center gap-2`}>
-                                            {getConversationName(conv)}
-                                            {conv.is_important && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-glow" title="Academic Importance" />}
-                                        </h3>
-                                        <span className="text-[10px] text-campus-muted">
-                                            {conv.last_message ? new Date(conv.last_message.created_at).toLocaleDateString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-xs text-campus-muted truncate max-w-[150px]">
-                                            {getMessagePreview(conv)}
-                                        </p>
-                                        {(conv.unread_count || 0) > 0 && (
-                                            <span className="w-5 h-5 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                                {conv.unread_count}
-                                            </span>
+                            <div className="relative group/chatItem block w-full">
+                                <button
+                                    key={conv.id}
+                                    onClick={() => navigate(`/app/chats/${conv.id}`)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 border-l-[3px] transition-all duration-200 ${isActive
+                                        ? 'bg-brand-500/10 border-brand-500'
+                                        : 'bg-transparent border-transparent hover:bg-white/[0.03]'
+                                        }`}
+                                >
+                                    <div className="relative flex-shrink-0">
+                                        {getConversationAvatar(conv) ? (
+                                            <img src={getConversationAvatar(conv)!} className="w-12 h-12 rounded-full object-cover shadow-sm" alt="" />
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                                                {getConversationName(conv).charAt(0)}
+                                            </div>
+                                        )}
+                                        {conv.type === 'direct' && (
+                                            <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-campus-dark" />
                                         )}
                                     </div>
-                                </div>
-                            </button>
+                                    <div className="flex-1 min-w-0 text-left">
+                                        <div className="flex justify-between items-baseline mb-0.5">
+                                            <h3 className={`font-semibold text-sm truncate ${isActive ? 'text-brand-400' : 'text-white'} flex items-center gap-2`}>
+                                                {getConversationName(conv)}
+                                                {conv.is_important && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-glow" title="Academic Importance" />}
+                                            </h3>
+                                            <span className="text-[10px] text-campus-muted">
+                                                {conv.last_message ? new Date(conv.last_message.created_at).toLocaleDateString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs text-campus-muted truncate max-w-[150px]">
+                                                {getMessagePreview(conv)}
+                                            </p>
+                                            {(conv.unread_count || 0) > 0 && (
+                                                <span className="w-5 h-5 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                                    {conv.unread_count}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={(e) => handleArchive(e, conv.id)}
+                                    className="absolute right-0 top-0 bottom-0 px-4 bg-brand-600/20 hover:bg-brand-500 text-campus-muted hover:text-white translate-x-full opacity-0 group-hover/chatItem:translate-x-0 group-hover/chatItem:opacity-100 transition-all flex flex-col items-center justify-center gap-1 border-l border-white/10"
+                                >
+                                    <Archive size={16} />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider">{(conv as any).is_archived ? 'Unarchive' : 'Archive'}</span>
+                                </button>
+                            </div>
                         );
                     })
                 )}

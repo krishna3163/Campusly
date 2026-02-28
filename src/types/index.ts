@@ -23,6 +23,7 @@ export interface UserProfile {
     reputation_score: number;
     badges: string[];
     anonymous_alias?: string;
+    activity_status?: string;
     privacy_level: string;
     last_seen: string;
     xp: number;

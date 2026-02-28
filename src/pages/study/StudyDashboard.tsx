@@ -13,6 +13,10 @@ import {
     Sparkles,
     Trash2,
     X,
+    Play,
+    Pause,
+    RotateCcw,
+    Users,
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 
@@ -25,6 +29,25 @@ export default function StudyDashboard() {
     const [myGroups, setMyGroups] = useState<Conversation[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState<'assignment' | 'exam' | null>(null);
+    const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
+    const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        if (isTimerRunning && pomodoroTime > 0) {
+            interval = setInterval(() => setPomodoroTime(t => t - 1), 1000);
+        } else if (pomodoroTime === 0) {
+            setIsTimerRunning(false);
+            new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => null);
+        }
+        return () => clearInterval(interval);
+    }, [isTimerRunning, pomodoroTime]);
+
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
 
     useEffect(() => {
         if (user?.id) loadData();
@@ -239,6 +262,36 @@ export default function StudyDashboard() {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </section>
+
+                        <section className="glass-card p-6 border-brand-500/20 bg-brand-500/5">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-xs uppercase text-brand-400 tracking-widest flex items-center gap-2">
+                                    <Timer size={14} /> Pomodoro Timer
+                                </h3>
+                                <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-1 rounded-md">
+                                    <Users size={10} className="animate-pulse" /> 142 Active Now
+                                </div>
+                            </div>
+                            <div className="text-center py-4">
+                                <div className="text-5xl font-mono font-black text-white drop-shadow-[0_0_15px_rgba(59,130,252,0.5)] mb-6 tracking-wider">
+                                    {formatTime(pomodoroTime)}
+                                </div>
+                                <div className="flex items-center justify-center gap-4">
+                                    <button
+                                        onClick={() => setIsTimerRunning(!isTimerRunning)}
+                                        className="w-12 h-12 rounded-full bg-brand-600 hover:bg-brand-500 flex items-center justify-center text-white shadow-glow transition-all active:scale-95"
+                                    >
+                                        {isTimerRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+                                    </button>
+                                    <button
+                                        onClick={() => { setIsTimerRunning(false); setPomodoroTime(25 * 60); }}
+                                        className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-campus-muted transition-all"
+                                    >
+                                        <RotateCcw size={16} />
+                                    </button>
+                                </div>
                             </div>
                         </section>
                     </div>
