@@ -36,7 +36,7 @@ jobs:
           retention-days: 30
 
   build-apk:
-    name: Build Android APK (TWA)
+    name: Build Android APK (Capacitor)
     needs: build-web
     runs-on: ubuntu-latest
     steps:
@@ -52,111 +52,35 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Bubblewrap CLI
-        run: npm i -g @nicolo-ribaudo/bubblewrap
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Create TWA manifest
-        run: |
-          mkdir -p twa-project
-          cat > twa-project/twa-manifest.json << 'MANIFEST'
-          {
-            "packageId": "com.campusly.app",
-            "host": "campusly.vercel.app",
-            "name": "Campusly",
-            "launcherName": "Campusly",
-            "display": "standalone",
-            "themeColor": "#0a0a0f",
-            "navigationColor": "#0a0a0f",
-            "navigationColorDark": "#0a0a0f",
-            "navigationDividerColor": "#0a0a0f",
-            "navigationDividerColorDark": "#0a0a0f",
-            "backgroundColor": "#0a0a0f",
-            "enableNotifications": true,
-            "startUrl": "/",
-            "iconUrl": "https://raw.githubusercontent.com/krishna3163/Campusly/main/public/icon-512.png",
-            "maskableIconUrl": "https://raw.githubusercontent.com/krishna3163/Campusly/main/public/icon-512.png",
-            "shortcuts": [],
-            "signing": {
-              "keystore": "./campusly.keystore",
-              "alias": "campusly",
-              "keystorePassword": "campusly123",
-              "keyPassword": "campusly123"
-            },
-            "generatorApp": "bubblewrap-cli",
-            "webManifestUrl": "https://campusly.vercel.app/manifest.json",
-            "fallbackType": "customtabs",
-            "features": {
-              "locationDelegation": {
-                "enabled": false
-              },
-              "playBilling": {
-                "enabled": false
-              }
-            },
-            "alphaDependencies": {
-              "enabled": false
-            },
-            "enableSiteSettingsShortcut": true,
-            "isChromeOSOnly": false,
-            "serviceAccountJsonFile": "",
-            "fingerprints": [],
-            "additionalTrustedOrigins": []
-          }
-          MANIFEST
+      - name: Initialize Android project
+        run: npx @capacitor/cli add android
 
-      - name: Generate signing keystore
-        working-directory: twa-project
-        run: |
-          keytool -genkeypair -v \
-            -keystore campusly.keystore \
-            -alias campusly \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass campusly123 \
-            -keypass campusly123 \
-            -dname "CN=Krishna Kumar, OU=Dev, O=Campusly, L=Lucknow, ST=UP, C=IN"
+      - name: Sync Capacitor
+        run: npx @capacitor/cli sync android
 
-      - name: Build APK with Bubblewrap
-        working-directory: twa-project
-        run: |
-          bubblewrap build --skipPwaValidation 2>/dev/null || true
-          # Fallback: build with Gradle if bubblewrap init needed
-          if [ ! -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            bubblewrap init --manifest="twa-manifest.json" 2>/dev/null || true
-            bubblewrap build --skipPwaValidation 2>/dev/null || true
-          fi
+      - name: Build Android App (APK)
+        working-directory: ./android
+        run: ./gradlew assembleDebug
 
-      - name: Find and rename APK
-        run: |
-          find . -name "*.apk" -type f | head -5
-          APK_PATH=$(find . -name "*.apk" -type f | head -1)
-          if [ -n "$APK_PATH" ]; then
-            cp "$APK_PATH" ./campusly-release.apk
-            echo "APK found and copied!"
-          else
-            echo "No APK generated - creating stub for artifact"
-            echo "APK build requires hosted PWA" > ./campusly-build-log.txt
-          fi
+      - name: Copy APK to workspace
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk ./campusly-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: campusly-apk
-          path: |
-            campusly-release.apk
-            campusly-build-log.txt
+          path: campusly-release.apk
           retention-days: 90
           if-no-files-found: warn
 
