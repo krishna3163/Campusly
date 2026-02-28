@@ -4,20 +4,15 @@ import { insforge } from '../../lib/insforge';
 import type { UserProfile } from '../../types';
 import {
     Settings,
-    Bell,
     Shield,
-    Moon,
     HardDrive,
     ChevronRight,
     Award,
     Star,
     BookOpen,
-    Briefcase,
     MessageCircle,
     Edit3,
     Camera,
-    Wifi,
-    WifiOff,
     Heart,
     Code2,
     Zap,
@@ -33,7 +28,7 @@ import {
 export default function ProfilePage() {
     const { user } = useUser();
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [isOnline] = useState(navigator.onLine);
     const [messageCount, setMessageCount] = useState<number | string>(0);
     const [notesCount, setNotesCount] = useState<number | string>(0);
     const [showEditModal, setShowEditModal] = useState(false);

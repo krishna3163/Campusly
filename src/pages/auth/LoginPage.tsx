@@ -4,7 +4,6 @@ import {
     BookOpen,
     Users,
     Briefcase,
-    Zap,
     Shield,
     Sparkles,
     Trophy,
@@ -45,7 +44,7 @@ export default function LoginPage() {
                         </p>
 
                         <div className="grid grid-cols-2 gap-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-                            {highlights.map((h, i) => (
+                            {highlights.map((h, _i) => (
                                 <div key={h.label} className="group">
                                     <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-400 mb-4 group-hover:bg-brand-500/10 group-hover:scale-110 transition-all">
                                         <h.icon size={24} />
@@ -60,7 +59,7 @@ export default function LoginPage() {
                     <div className="mt-auto animate-fade-in" style={{ animationDelay: '0.4s' }}>
                         <div className="flex items-center gap-6">
                             <div className="flex -space-x-3">
-                                {[1, 2, 3, 4].map(i => <div key={i} className="w-10 h-10 rounded-full border-2 border-campus-darker bg-white/10" />)}
+                                {[1, 2, 3, 4].map(_i => <div key={_i} className="w-10 h-10 rounded-full border-2 border-campus-darker bg-white/10" />)}
                             </div>
                             <p className="text-sm font-medium text-white/50">Trusted by <span className="text-white font-bold">10,000+</span> students across India.</p>
                         </div>

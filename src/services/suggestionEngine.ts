@@ -7,6 +7,7 @@ import { insforge } from '../lib/insforge';
 import type { UserProfile } from '../types';
 import type { UserSuggestion } from '../types/social';
 import { ADMIN_USER_ID } from '../types/social';
+import { RankingEngine } from './rankingService';
 
 /**
  * Generate suggestions for a new user.
@@ -104,17 +105,31 @@ export async function generateSuggestions(
             .select('*')
             .eq('campus_id', profile.campus_id)
             .order('last_seen', { ascending: false })
-            .limit(5);
+            .limit(20);
 
         if (active) {
             for (const a of active) {
                 if (!seenIds.has(a.id)) {
-                    suggestions.push({ user: a as UserProfile, reason: 'active_user', score: 50 });
+                    suggestions.push({
+                        user: a as UserProfile,
+                        reason: 'active_user',
+                        score: 0 // Will be recalculated by engine
+                    });
                     seenIds.add(a.id);
                 }
             }
         }
     }
+
+    const profilesToRank = suggestions.map(s => s.user);
+    const rankedProfiles = RankingEngine.rankFriendSuggestions(profilesToRank, profile);
+
+    // Re-map back to UserSuggestion format
+    const finalSuggestions: UserSuggestion[] = rankedProfiles.map((rp: any) => ({
+        user: rp.profile,
+        score: rp.score,
+        reason: (suggestions.find(s => s.user.id === rp.profile.id)?.reason || 'peer') as any
+    }));
 
     // Filter already actioned suggestions
     const { data: actioned } = await insforge.database
@@ -124,7 +139,7 @@ export async function generateSuggestions(
 
     const actionedIds = new Set((actioned || []).map((a: any) => a.suggested_user_id));
 
-    return suggestions
+    return finalSuggestions
         .filter(s => !actionedIds.has(s.user.id))
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
@@ -138,11 +153,25 @@ export async function recordSuggestionAction(
     suggestedUserId: string,
     action: 'dismissed' | 'connected' | 'followed'
 ): Promise<void> {
-    await insforge.database.from('user_suggestion_actions').upsert({
-        user_id: userId,
-        suggested_user_id: suggestedUserId,
-        action,
-    });
+    const { data: existing } = await insforge.database
+        .from('user_suggestion_actions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('suggested_user_id', suggestedUserId)
+        .maybeSingle();
+
+    if (existing) {
+        await insforge.database
+            .from('user_suggestion_actions')
+            .update({ action })
+            .eq('id', existing.id);
+    } else {
+        await insforge.database.from('user_suggestion_actions').insert({
+            user_id: userId,
+            suggested_user_id: suggestedUserId,
+            action,
+        });
+    }
 }
 
 /**

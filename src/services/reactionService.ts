@@ -5,7 +5,7 @@
 // ===================================================================
 
 import { insforge } from '../lib/insforge';
-import type { MessageReaction, ReactionEmoji, REACTION_EMOJIS } from '../types/messaging';
+// Types removed as they were unused
 
 /**
  * Toggle a reaction on a message.
@@ -77,26 +77,29 @@ export function subscribeToReactions(
     conversationId: string,
     onReactionChange: (payload: { messageId: string; emoji: string; userId: string; action: 'INSERT' | 'DELETE' }) => void
 ): () => void {
-    const channel = insforge.realtime
-        .channel(`reactions:${conversationId}`)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'message_reactions',
-        }, (payload: any) => {
-            const record = payload.new || payload.old;
-            if (record) {
-                onReactionChange({
-                    messageId: record.message_id,
-                    emoji: record.emoji,
-                    userId: record.user_id,
-                    action: payload.eventType === 'DELETE' ? 'DELETE' : 'INSERT',
-                });
-            }
-        })
-        .subscribe();
+    const channelName = `conversations:${conversationId}`;
+
+    if (!insforge.realtime.isConnected) {
+        insforge.realtime.connect();
+    }
+
+    insforge.realtime.subscribe(channelName);
+
+    const handler = (payload: any) => {
+        if (payload.meta?.channel === channelName) {
+            onReactionChange({
+                messageId: payload.message_id,
+                emoji: payload.emoji,
+                userId: payload.user_id,
+                action: payload.action === 'DELETE' ? 'DELETE' : 'INSERT',
+            });
+        }
+    };
+
+    insforge.realtime.on('reaction_change', handler);
 
     return () => {
-        insforge.realtime.removeChannel(channel);
+        insforge.realtime.unsubscribe(channelName);
+        insforge.realtime.off('reaction_change', handler);
     };
 }

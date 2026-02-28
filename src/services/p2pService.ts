@@ -100,7 +100,7 @@ class P2PService {
         };
 
         // Send file header
-        this.dataChannel.send(JSON.stringify({ type: 'file_header', ...header }));
+        this.dataChannel.send(JSON.stringify({ ...header }));
 
         // Send chunks
         let offset = 0;

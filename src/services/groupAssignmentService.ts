@@ -121,22 +121,24 @@ export function subscribeToGroupAssignments(
     groupId: string,
     onAssignmentChange: (assignment: GroupAssignment, eventType: string) => void
 ): () => void {
-    const channel = insforge.realtime
-        .channel(`group_assignments:${groupId}`)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'group_assignments',
-            filter: `group_id=eq.${groupId}`,
-        }, (payload: any) => {
-            const record = payload.new || payload.old;
-            if (record) {
-                onAssignmentChange(record as GroupAssignment, payload.eventType);
-            }
-        })
-        .subscribe();
+    const channelName = `conversations:${groupId}`;
+
+    if (!insforge.realtime.isConnected) {
+        insforge.realtime.connect();
+    }
+
+    insforge.realtime.subscribe(channelName);
+
+    const handler = (payload: any) => {
+        if (payload.meta?.channel === channelName) {
+            onAssignmentChange(payload as GroupAssignment, payload.action);
+        }
+    };
+
+    insforge.realtime.on('assignment_change', handler);
 
     return () => {
-        insforge.realtime.removeChannel(channel);
+        insforge.realtime.unsubscribe(channelName);
+        insforge.realtime.off('assignment_change', handler);
     };
 }

@@ -42,11 +42,10 @@ export async function submitBugReport(
         const path = `bug-reports/${userId}/${Date.now()}.webp`;
         const { data: uploadData, error: uploadError } = await insforge.storage
             .from('media')
-            .upload(path, data.screenshotFile, { upsert: true });
+            .upload(path, data.screenshotFile);
 
         if (!uploadError && uploadData) {
-            const { data: urlData } = insforge.storage.from('media').getPublicUrl(uploadData.path);
-            screenshotUrl = urlData.publicUrl;
+            screenshotUrl = uploadData.url;
         }
     }
 

@@ -6,7 +6,6 @@ import {
     TrendingUp,
     Calendar,
     MapPin,
-    Search,
     ShoppingBag,
     MessageSquare,
     Megaphone,
@@ -22,8 +21,9 @@ import {
     Sparkles,
     Eye,
     ChevronRight,
-    Users,
+    Image,
 } from 'lucide-react';
+import { RankingEngine } from '../../services/rankingService';
 
 const categories = [
     { key: 'all', label: 'All Updates', icon: Sparkles, color: 'text-white' },
@@ -43,19 +43,20 @@ export default function CampusFeedPage() {
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('all');
     const [showComposer, setShowComposer] = useState(false);
+    const [trending, setTrending] = useState<string[]>([]);
 
     useEffect(() => {
         loadPosts();
     }, [activeCategory]);
 
     const loadPosts = async () => {
+        if (!user?.profile) return;
         setLoading(true);
         try {
             let query = insforge.database
                 .from('posts')
                 .select('*')
-                .order('created_at', { ascending: false })
-                .limit(20);
+                .limit(50); // Get more candidates for ranking
 
             if (activeCategory !== 'all') {
                 query = query.eq('category', activeCategory);
@@ -69,14 +70,21 @@ export default function CampusFeedPage() {
                     const { data: pData } = await insforge.database.from('profiles').select('*').in('id', authorIds);
                     pData?.forEach(p => profiles[p.id] = p);
                 }
-                setPosts((data as Post[]).map(p => ({ ...p, author: profiles[p.author_id] })));
+
+                const enrichedPosts = (data as Post[]).map(p => ({ ...p, author: profiles[p.author_id] }));
+
+                // APPLY RANKING ENGINE
+                const ranked = RankingEngine.rankPosts(enrichedPosts, (user.profile as any), {
+                    examMode: (user.profile as any)?.exam_mode || false,
+                    placementMode: (user.profile as any)?.placement_status === 'preparing'
+                });
+
+                setPosts(ranked);
+                setTrending(RankingEngine.getTrending(enrichedPosts));
             }
         } catch (err) { } finally { setLoading(false); }
     };
 
-    const handleVote = async (postId: string, dir: 'up' | 'down') => {
-        // Optimistic UI logic...
-    };
 
     return (
         <div className="h-full bg-campus-darker overflow-y-auto">
@@ -125,10 +133,10 @@ export default function CampusFeedPage() {
                     {/* Quick Post Prompt */}
                     <div onClick={() => setShowComposer(true)} className="glass-card p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors group">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center font-bold">
-                            {user?.profile?.display_name?.charAt(0) || 'U'}
+                            {(user?.profile?.display_name as string)?.charAt(0) || 'U'}
                         </div>
                         <div className="flex-1 bg-white/5 rounded-full px-5 py-2.5 text-campus-muted text-sm border border-white/[0.03] group-hover:border-white/10 transition-all">
-                            What's happening in Campus, {user?.profile?.display_name?.split(' ')[0]}?
+                            What's happening in Campus, {(user?.profile?.display_name as string)?.split(' ')[0] || 'Student'}?
                         </div>
                         <div className="p-2 text-brand-400 group-hover:scale-110 transition-transform">
                             <Plus size={24} />
@@ -227,13 +235,15 @@ export default function CampusFeedPage() {
                             <TrendingUp size={16} className="text-brand-400" />
                         </div>
                         <div className="space-y-4">
-                            {['Semester Exams', 'Hostel Fest 2026', 'Placement Drive', 'Cultural Night'].map((tag, i) => (
+                            {trending.length > 0 ? trending.map((tag, i) => (
                                 <div key={tag} className="flex flex-col cursor-pointer group">
-                                    <span className="text-[10px] text-campus-muted font-bold uppercase tracking-widest">#{i + 1} Trending in Campus</span>
-                                    <span className="text-sm font-bold group-hover:text-brand-400 transition-colors">{tag}</span>
-                                    <span className="text-[10px] text-campus-muted/60">{Math.floor(Math.random() * 1000)} posts this week</span>
+                                    <span className="text-[10px] text-campus-muted font-bold uppercase tracking-widest">#{i + 1} Trending In Feed</span>
+                                    <span className="text-sm font-bold group-hover:text-brand-400 transition-colors uppercase">{tag}</span>
+                                    <span className="text-[10px] text-campus-muted/60">High Engagement Velocity</span>
                                 </div>
-                            ))}
+                            )) : (
+                                <p className="text-xs text-campus-muted italic">Scanning trends...</p>
+                            )}
                         </div>
                     </div>
 

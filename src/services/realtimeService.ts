@@ -106,15 +106,17 @@ class RealtimeService {
         event: string,
         callback: (payload: Record<string, unknown>) => void
     ): CleanupFn {
+        // Connect if needed
+        if (!insforge.realtime.isConnected) {
+            insforge.realtime.connect();
+        }
+
+        insforge.realtime.subscribe(channelName);
         insforge.realtime.on(event, callback);
 
         const cleanup = () => {
-            // Note: InsForge SDK should support .off(), otherwise this is a no-op
-            try {
-                insforge.realtime.off?.(event, callback);
-            } catch {
-                // Graceful fallback
-            }
+            insforge.realtime.unsubscribe?.(channelName);
+            insforge.realtime.off?.(event, callback);
         };
 
         this.cleanups.push(cleanup);

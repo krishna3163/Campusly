@@ -8,7 +8,7 @@ import { insforge } from '../lib/insforge';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const IMAGE_QUALITY = 0.8;
-const VIDEO_MAX_DIMENSION = 720;
+
 
 export type MediaType = 'image' | 'video' | 'audio' | 'voice' | 'file' | 'gif' | 'sticker';
 
@@ -156,23 +156,15 @@ export async function uploadToStorage(
         // InsForge storage upload
         const { data, error } = await insforge.storage
             .from(bucket)
-            .upload(path, file, {
-                cacheControl: '3600',
-                upsert: true,
-            });
+            .upload(path, file);
 
-        if (error) {
+        if (error || !data) {
             console.error('Upload error:', error);
             return null;
         }
 
-        // Get public URL
-        const { data: urlData } = insforge.storage
-            .from(bucket)
-            .getPublicUrl(data.path);
-
         onProgress?.(100);
-        return urlData.publicUrl;
+        return data.url;
     } catch (err) {
         console.error('Upload failed:', err);
         return null;

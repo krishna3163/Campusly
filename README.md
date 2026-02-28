@@ -2,6 +2,8 @@
 
 **The Unified Operating System for Student Life.**
 
+🌐 **Live Demo:** [https://campusly.insforge.site](https://campusly.insforge.site)
+
 Campusly is a high-performance, local-first web application designed to centralize the fragmented Indian campus experience. Combining secure E2E-encrypted messaging, a collaborative study dashboard, and a corporate placement hub, Campusly is built to thrive in high-density hostel environments.
 
 ---

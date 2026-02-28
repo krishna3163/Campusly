@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom';
-import { useUser } from '@insforge/react';
-import { insforge } from '../../lib/insforge';
 import { useAppStore } from '../../stores/appStore';
 import SyncStatusBadge from '../ui/SyncStatusBadge';
 import ExamModeWidget from '../ui/ExamModeWidget';
@@ -13,22 +11,32 @@ import {
     Briefcase,
     User,
     Settings,
-    LogOut,
     Plus,
-    Search,
     Hexagon,
     Bell,
     X,
     MessageCircle,
     FileText,
+    CircleDashed,
+    Archive,
+    CheckCircle2,
+    Trash2,
 } from 'lucide-react';
 
 export default function MainLayout() {
-    const { user } = useUser();
     const location = useLocation();
     const navigate = useNavigate();
-    const { isExamMode, setExamMode } = useAppStore();
+    const { examMode } = useAppStore();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+    const [notifications, setNotifications] = useState([
+        { id: 1, title: 'New system update', time: 'Just now', read: false },
+        { id: 2, title: 'Assignment Reminder', time: '2 hours ago', read: false }
+    ]);
+
+    const clearNotifications = () => {
+        setNotifications([]);
+    };
 
     // Navigation configuration
     const navItems = [
@@ -36,35 +44,78 @@ export default function MainLayout() {
         { id: 'feed', label: 'Campus Feed', icon: LayoutDashboard, path: '/app/feed', hideInExam: true },
         { id: 'study', label: 'Study Hub', icon: BookOpen, path: '/app/study' },
         { id: 'placement', label: 'Placement', icon: Briefcase, path: '/app/placement' },
+        { id: 'status', label: 'Status', icon: CircleDashed, path: '/app/status' },
+        { id: 'archive', label: 'Archived', icon: Archive, path: '/app/archive' },
         { id: 'profile', label: 'Identity', icon: User, path: '/app/profile' },
     ];
 
     const isChatPath = location.pathname.startsWith('/app/chats/');
 
     return (
-        <div className="flex h-screen bg-campus-darker text-white overflow-hidden font-sans">
+        <div className="flex h-[100dvh] bg-campus-darker text-white overflow-hidden font-sans">
 
             {/* Desktop Side Rail — High-end Native Experience */}
             <aside className="hidden md:flex flex-col items-center w-20 lg:w-64 bg-campus-dark border-r border-white/[0.05] z-50 py-6 transition-all duration-300 overflow-y-auto shrink-0 shadow-premium">
 
-                {/* Logo Section */}
-                <div className="mb-10 lg:px-6 w-full flex justify-center lg:justify-start items-center gap-3">
+                <div className="mb-10 lg:px-6 w-full flex justify-center lg:justify-start items-center gap-3 relative">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-glow shrink-0">
                         <Hexagon className="text-white fill-current" size={24} />
                     </div>
                     <span className="hidden lg:block text-xl font-black tracking-tighter text-white">Campusly</span>
+
+                    {/* Notification Bell next to logo */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                            className={`p-2 rounded-full transition-colors ml-1 ${isNotificationsOpen ? 'bg-white/10 text-brand-400' : 'hover:bg-white/10 text-campus-muted hover:text-white'}`}
+                        >
+                            <Bell size={18} />
+                            {notifications.length > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-campus-dark"></span>}
+                        </button>
+
+                        {/* Notifications Dropdown */}
+                        {isNotificationsOpen && (
+                            <>
+                                <div className="fixed inset-0 z-[100]" onClick={() => setIsNotificationsOpen(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-72 bg-campus-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl z-[101] overflow-hidden flex flex-col animate-scale-in">
+                                    <div className="p-4 border-b border-white/[0.05] flex justify-between items-center bg-white/[0.02]">
+                                        <h3 className="font-bold text-sm">Notifications</h3>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))} className="p-1 hover:bg-white/10 rounded text-brand-400" title="Mark all as read"><CheckCircle2 size={14} /></button>
+                                            <button onClick={clearNotifications} className="p-1 hover:bg-white/10 rounded text-red-400" title="Clear all"><Trash2 size={14} /></button>
+                                        </div>
+                                    </div>
+                                    <div className="max-h-80 overflow-y-auto">
+                                        {notifications.length === 0 ? (
+                                            <div className="p-6 text-center text-campus-muted text-xs">No notifications</div>
+                                        ) : (
+                                            notifications.map(n => (
+                                                <div key={n.id} className={`p-4 border-b border-white/[0.03] hover:bg-white/[0.02] cursor-pointer transition-colors ${!n.read ? 'bg-brand-500/5' : ''}`}>
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <span className={`text-sm ${!n.read ? 'font-bold text-white' : 'text-campus-muted'}`}>{n.title}</span>
+                                                        {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5"></div>}
+                                                    </div>
+                                                    <span className="text-[10px] text-campus-muted opacity-70">{n.time}</span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* Main Navigation */}
                 <nav className="flex-1 w-full space-y-1 lg:px-3">
                     {navItems.map((item) => (
-                        (!item.hideInExam || !isExamMode) && (
+                        (!item.hideInExam || !examMode) && (
                             <Link
                                 key={item.id}
                                 to={item.path}
                                 className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all group relative ${location.pathname.startsWith(item.path)
-                                        ? 'bg-brand-500/10 text-brand-400 font-bold'
-                                        : 'text-campus-muted hover:text-white hover:bg-white/5'
+                                    ? 'bg-brand-500/10 text-brand-400 font-bold'
+                                    : 'text-campus-muted hover:text-white hover:bg-white/5'
                                     }`}
                             >
                                 <item.icon size={22} className={`shrink-0 transition-transform group-hover:scale-110 ${location.pathname.startsWith(item.path) ? 'text-brand-400' : ''}`} />
@@ -106,9 +157,6 @@ export default function MainLayout() {
                 <div className="hidden md:flex absolute top-6 right-8 z-40 items-center gap-3">
                     <SyncStatusBadge />
                     <ExamModeWidget />
-                    <button className="p-2.5 rounded-xl bg-campus-dark/50 backdrop-blur-md border border-white/5 hover:bg-white/5 text-campus-muted hover:text-white transition-all">
-                        <Bell size={18} />
-                    </button>
                     <Toast />
                 </div>
 
@@ -119,7 +167,7 @@ export default function MainLayout() {
                 {/* Mobile Navigation (Bottom Bar) */}
                 <nav className={`md:hidden flex safe-bottom bg-campus-dark/80 backdrop-blur-3xl border-t border-white/[0.05] z-50 transition-all duration-300 ${isChatPath ? 'h-0 opacity-0 overflow-hidden' : 'h-16 opacity-100'}`}>
                     {navItems.map((item) => (
-                        (!item.hideInExam || !isExamMode) && (
+                        (!item.hideInExam || !examMode) && (
                             <Link
                                 key={item.id}
                                 to={item.path}

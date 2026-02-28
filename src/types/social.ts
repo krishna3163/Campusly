@@ -3,7 +3,7 @@
 // EXTENDS existing type system. No existing types modified.
 // ===================================================================
 
-import type { UserProfile, AttachmentMeta } from './index';
+import type { UserProfile } from './index';
 
 // ===== BUG REPORTS =====
 export interface BugReport {
@@ -69,7 +69,7 @@ export interface Friendship {
 // ===== SUGGESTION SYSTEM =====
 export interface UserSuggestion {
     user: UserProfile;
-    reason: 'same_campus' | 'same_branch' | 'same_semester' | 'mutual_friends' | 'top_contributor' | 'active_user' | 'admin';
+    reason: 'same_campus' | 'same_branch' | 'same_semester' | 'mutual_friends' | 'top_contributor' | 'active_user' | 'admin' | 'peer';
     score: number;
 }
 

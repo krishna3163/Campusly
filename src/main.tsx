@@ -23,7 +23,7 @@ if (!rootElement) throw new Error('Failed to find the root element');
 createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
-      <InsforgeProvider client={insforge}>
+      <InsforgeProvider client={insforge as any}>
         <QueryClientProvider client={queryClient}>
           <App />
         </QueryClientProvider>

@@ -5,6 +5,7 @@ import LoadingScreen from './components/ui/LoadingScreen';
 import { syncService } from './services/syncService';
 import { realtimeService } from './services/realtimeService';
 import { initErrorReporting } from './services/errorReporter';
+import { useUserPersistence } from './hooks/useUserPersistence';
 
 // Lazy load pages for code splitting
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
@@ -16,6 +17,8 @@ const CampusFeedPage = lazy(() => import('./pages/campus/CampusFeedPage'));
 const StudyDashboard = lazy(() => import('./pages/study/StudyDashboard'));
 const PlacementHub = lazy(() => import('./pages/placement/PlacementHub'));
 const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'));
+const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
+const CareerOverview = lazy(() => import('./pages/placement/CareerOverview'));
 const DeveloperPage = lazy(() => import('./pages/settings/DeveloperPage'));
 const BugReportPage = lazy(() => import('./pages/settings/BugReportPage'));
 
@@ -38,6 +41,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useUserPersistence();
   // Start global services
   useEffect(() => {
     syncService.start(5000);
@@ -93,6 +97,8 @@ export default function App() {
           <Route path="study" element={<StudyDashboard />} />
           <Route path="placement" element={<PlacementHub />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="career-overview" element={<CareerOverview />} />
 
           {/* Settings sub-routes */}
           <Route path="settings/developer" element={<DeveloperPage />} />
@@ -105,3 +111,4 @@ export default function App() {
     </Suspense>
   );
 }
+

@@ -1,0 +1,6 @@
+{
+    "appId": "app.insforge.campusly",
+    "appName": "campusly",
+    "webDir": "dist",
+    "bundledWebRuntime": false
+}

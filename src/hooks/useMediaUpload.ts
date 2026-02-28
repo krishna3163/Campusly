@@ -78,21 +78,11 @@ export function useMediaUpload() {
 
             const { data, error } = await insforge.storage
                 .from(bucket)
-                .upload(fileName, uploadData, {
-                    contentType: file.type,
-                });
+                .upload(fileName, uploadData);
 
             if (error) throw error;
-
-            updateProgress({ status: 'completed', progress: 100 });
-
-            // Get public URL
-            const { data: urlData } = insforge.storage
-                .from(bucket)
-                .getPublicUrl(data?.path || fileName);
-
-            const url = urlData?.publicUrl || '';
-            updateProgress({ url });
+            const url = data?.url || '';
+            updateProgress({ status: 'completed', progress: 100, url });
 
             // Cleanup after 5s
             setTimeout(() => {

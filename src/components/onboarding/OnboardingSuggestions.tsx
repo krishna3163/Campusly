@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@insforge/react';
-import { useNavigate } from 'react-router-dom';
 import { generateSuggestions, recordSuggestionAction, completeOnboarding } from '../../services/suggestionEngine';
 import { sendFriendRequest } from '../../services/friendService';
 import type { UserProfile } from '../../types';
@@ -8,11 +7,8 @@ import type { UserSuggestion } from '../../types/social';
 import {
     UserPlus,
     X,
-    ChevronRight,
-    Sparkles,
     Crown,
-    Zap,
-    Users,
+    Sparkles,
     ArrowRight,
     Check,
 } from 'lucide-react';
@@ -24,7 +20,6 @@ interface Props {
 
 export default function OnboardingSuggestions({ profile, onComplete }: Props) {
     const { user } = useUser();
-    const navigate = useNavigate();
     const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
     const [loading, setLoading] = useState(true);
     const [connected, setConnected] = useState<Set<string>>(new Set());

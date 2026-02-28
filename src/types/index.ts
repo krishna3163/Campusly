@@ -55,6 +55,7 @@ export interface Conversation {
     semester?: number;
     created_by?: string;
     is_exam_mode: boolean;
+    is_important: boolean;
     max_members: number;
     created_at: string;
     updated_at: string;
@@ -153,6 +154,7 @@ export interface Post {
     event_date?: string;
     event_location?: string;
     created_at: string;
+    rankingScore?: number;
     // Client enrichment
     author?: UserProfile;
     user_vote?: 'up' | 'down' | null;
@@ -201,6 +203,7 @@ export interface Assignment {
     due_date?: string;
     status: 'pending' | 'in_progress' | 'completed' | 'overdue';
     priority: 'low' | 'medium' | 'high' | 'critical';
+    conversation_id?: string;
     created_at: string;
 }
 
@@ -215,6 +218,7 @@ export interface Exam {
     syllabus?: string;
     marks_total?: number;
     marks_obtained?: number;
+    conversation_id?: string;
     created_at: string;
 }
 

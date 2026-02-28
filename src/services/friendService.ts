@@ -4,7 +4,7 @@
 // ===================================================================
 
 import { insforge } from '../lib/insforge';
-import type { FriendRequest, Friendship } from '../types/social';
+import type { FriendRequest } from '../types/social';
 import type { UserProfile } from '../types';
 
 /**
@@ -34,20 +34,38 @@ export async function sendFriendRequest(senderId: string, receiverId: string): P
 
     if (friendship) return null; // Already friends
 
-    const { data, error } = await insforge.database
-        .from('friend_requests')
-        .upsert({
-            sender_id: senderId,
-            receiver_id: receiverId,
-            status: 'pending',
-            updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+    let result;
+    if (existing) {
+        // Update existing rejected request
+        result = await insforge.database
+            .from('friend_requests')
+            .update({
+                sender_id: senderId,
+                receiver_id: receiverId,
+                status: 'pending',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+    } else {
+        result = await insforge.database
+            .from('friend_requests')
+            .insert({
+                sender_id: senderId,
+                receiver_id: receiverId,
+                status: 'pending',
+                updated_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+    }
+
+    const { data, error } = result;
 
     if (error || !data) return null;
 
-    // Notify receiver
+    // Notify receiver via database
     await insforge.database.from('notifications').insert({
         user_id: receiverId,
         type: 'friend_request',
@@ -82,15 +100,28 @@ export async function acceptFriendRequest(requestId: string, receiverId: string)
 
     // Create friendship (sorted IDs for unique constraint)
     const ids = [request.sender_id, request.receiver_id].sort();
-    await insforge.database.from('friendships').upsert({
-        user_id_1: ids[0],
-        user_id_2: ids[1],
-    });
+
+    // Check if already friends
+    const { data: existingFriendship } = await insforge.database
+        .from('friendships')
+        .select('id')
+        .eq('user_id_1', ids[0])
+        .eq('user_id_2', ids[1])
+        .maybeSingle();
+
+    if (!existingFriendship) {
+        await insforge.database.from('friendships').insert({
+            user_id_1: ids[0],
+            user_id_2: ids[1],
+        });
+    }
 
     // Increment friend counts
-    await insforge.database.rpc('increment_friend_count', { user_ids: [request.sender_id, request.receiver_id] }).catch(() => {
-        // Fallback: manual increment
-    });
+    const { error: rpcError } = await insforge.database.rpc('increment_friend_count', { user_ids: [request.sender_id, request.receiver_id] });
+
+    if (rpcError) {
+        // Fallback: manual increment (can be implemented later)
+    }
 
     // Notify sender
     await insforge.database.from('notifications').insert({
@@ -222,18 +253,26 @@ export function subscribeToFriendRequests(
     userId: string,
     onRequestChange: (request: FriendRequest, eventType: string) => void
 ): () => void {
-    const channel = insforge.realtime
-        .channel(`friend_requests:${userId}`)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'friend_requests',
-            filter: `receiver_id=eq.${userId}`,
-        }, (payload: any) => {
-            const record = payload.new || payload.old;
-            if (record) onRequestChange(record as FriendRequest, payload.eventType);
-        })
-        .subscribe();
+    const channelName = `friend_requests:${userId}`;
 
-    return () => insforge.realtime.removeChannel(channel);
+    // Connect if not already
+    if (!insforge.realtime.isConnected) {
+        insforge.realtime.connect();
+    }
+
+    insforge.realtime.subscribe(channelName);
+
+    const handler = (payload: any) => {
+        // Filter by channel using meta provided by InsForge SDK
+        if (payload.meta?.channel === channelName) {
+            onRequestChange(payload as FriendRequest, 'postgres_changes'); // Emulate previous event mapping
+        }
+    };
+
+    insforge.realtime.on('friend_request_change', handler);
+
+    return () => {
+        insforge.realtime.unsubscribe(channelName);
+        insforge.realtime.off('friend_request_change', handler);
+    };
 }
