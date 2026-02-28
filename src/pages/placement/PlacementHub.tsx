@@ -13,15 +13,20 @@ import {
     Globe,
     Zap,
     X,
+    Briefcase,
+    Plus,
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 import { resumeService, ResumeExtractedData } from '../../services/resumeService';
 import { useUser } from '@insforge/react';
+import JobListingForm from '../../components/placement/JobListingForm';
+import JobListingsSection from '../../components/placement/JobListingsSection';
 
 export default function PlacementHub() {
     const { user } = useUser();
     const [experiences, setExperiences] = useState<InterviewExperience[]>([]);
-    const [activeSection, setActiveSection] = useState<'overview' | 'experiences' | 'resume'>('overview');
+    const [activeSection, setActiveSection] = useState<'overview' | 'experiences' | 'jobs' | 'resume'>('overview');
+    const [showJobForm, setShowJobForm] = useState(false);
     const [selectedExp, setSelectedExp] = useState<InterviewExperience | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [extractedData, setExtractedData] = useState<ResumeExtractedData | null>(null);
@@ -79,6 +84,10 @@ export default function PlacementHub() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button onClick={() => setShowJobForm(true)} className="btn-primary flex items-center gap-2 px-5 py-3 rounded-xl">
+                            <Plus size={18} strokeWidth={2} />
+                            <span className="text-sm font-bold">Add Job</span>
+                        </button>
                         <button onClick={() => window.open('https://linkedin.com/jobs', '_blank')} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-white/5 transition-all text-white">
                             <Globe size={18} className="text-brand-400" />
                             <span className="text-sm font-bold">External Jobs</span>
@@ -93,7 +102,8 @@ export default function PlacementHub() {
                                 {[
                                     { id: 'overview', label: 'Career Overview', icon: TrendingUp },
                                     { id: 'experiences', label: 'Interview Archive', icon: MessageSquare },
-                                    { id: 'resume', label: 'AI Resume Expert', icon: Sparkles },
+                                    { id: 'jobs', label: 'Job Listings', icon: Briefcase },
+                                    { id: 'resume', label: 'Resume Builder', icon: Sparkles },
                                 ].map(item => (
                                     <button
                                         key={item.id}
@@ -125,37 +135,79 @@ export default function PlacementHub() {
 
                     <main className="lg:col-span-8 space-y-8">
                         {activeSection === 'overview' ? (
-                            <>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="glass-card p-6 flex flex-col justify-between h-40">
-                                        <Award size={20} className="text-brand-400" />
-                                        <div>
-                                            <h4 className="text-xs font-bold text-campus-muted uppercase">Highest Package</h4>
-                                            <p className="text-3xl font-black text-white">45.5 LPA</p>
+                            <div className="space-y-10 animate-fade-in">
+                                {/* Cleaned Up Stats */}
+                                <div className="grid grid-cols-2 gap-4 md:gap-6">
+                                    <div className="bg-campus-card rounded-[16px] p-6 lg:p-8 border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <Award size={20} className="text-brand-400" />
+                                            <h4 className="text-xs font-bold text-campus-muted uppercase tracking-wider">Highest Package</h4>
                                         </div>
+                                        <p className="text-4xl font-black text-white tracking-tight">45.5 <span className="text-sm text-campus-muted font-bold">LPA</span></p>
                                     </div>
-                                    <div className="glass-card p-6 flex flex-col justify-between h-40">
-                                        <Users size={20} className="text-purple-400" />
-                                        <div>
-                                            <h4 className="text-xs font-bold text-campus-muted uppercase">Placed Students</h4>
-                                            <p className="text-3xl font-black text-white">420+</p>
+                                    <div className="bg-campus-card rounded-[16px] p-6 lg:p-8 border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <Users size={20} className="text-purple-400" />
+                                            <h4 className="text-xs font-bold text-campus-muted uppercase tracking-wider">Placed Students</h4>
                                         </div>
+                                        <p className="text-4xl font-black text-white tracking-tight">420<span className="text-brand-400">+</span></p>
                                     </div>
                                 </div>
 
+                                {/* Top Companies Horizontal Scroll */}
                                 <section>
-                                    <h3 className="text-xl font-bold mb-6">Recent Experiences</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {experiences.slice(0, 4).map(exp => (
-                                            <button key={exp.id} onClick={() => setSelectedExp(exp)} className="glass-card p-5 text-left hover:bg-white/5 transition-all">
-                                                <h4 className="font-bold text-white">{exp.company}</h4>
-                                                <p className="text-[10px] text-campus-muted uppercase">{exp.role || 'SDE'}</p>
-                                                <p className="text-xs text-white/60 mt-4 line-clamp-2">"{exp.preparation_tips}"</p>
-                                            </button>
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-xl font-black text-white tracking-tight">Top Companies</h3>
+                                        <button className="text-sm font-bold text-brand-400 hover:text-brand-300 transition-colors">View All</button>
+                                    </div>
+                                    <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4 snap-x">
+                                        {['Google', 'Microsoft', 'Amazon', 'Meta', 'Netflix', 'Apple'].map((company) => (
+                                            <div key={company} className="shrink-0 snap-start bg-campus-card border border-campus-border rounded-[20px] p-6 w-[160px] h-[160px] flex flex-col items-center justify-center gap-4 hover:border-brand-500/30 hover:bg-white/[0.02] hover:shadow-card-hover transition-all cursor-pointer group">
+                                                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <Building2 size={24} className="text-campus-muted group-hover:text-brand-400 transition-colors" />
+                                                </div>
+                                                <p className="font-bold text-sm text-center text-white/90">{company}</p>
+                                            </div>
                                         ))}
                                     </div>
                                 </section>
-                            </>
+
+                                {/* Active Opportunities Grid */}
+                                <section>
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-xl font-black text-white tracking-tight">Active Opportunities</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        {[1, 2, 3, 4].map(job => (
+                                            <div key={job} className="bg-campus-card border border-campus-border rounded-[16px] p-6 hover:shadow-card-hover hover:-translate-y-1 transition-all flex flex-col group">
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 rounded-[12px] bg-brand-500/10 flex items-center justify-center border border-brand-500/20 group-hover:bg-brand-500/20 transition-colors">
+                                                            <Building2 size={20} className="text-brand-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-white tracking-tight leading-tight">Software Developer</h4>
+                                                            <p className="text-xs font-medium text-campus-muted mt-1">TechCorp Inc.</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-full">New</span>
+                                                </div>
+                                                <div className="flex items-center gap-4 mt-auto pt-5 border-t border-white/[0.04]">
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] text-campus-muted font-bold uppercase tracking-widest mb-1">Package</p>
+                                                        <p className="text-sm font-black text-white">12-15 LPA</p>
+                                                    </div>
+                                                    <a href="https://www.linkedin.com/jobs/" target="_blank" rel="noopener noreferrer" className="btn-primary py-2.5 px-6 rounded-[12px] text-sm font-bold shadow-glow hover:scale-105 active:scale-95 transition-all inline-block text-center">
+                                                        Apply Now
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            </div>
+                        ) : activeSection === 'jobs' ? (
+                            <JobListingsSection userId={user?.id || ''} campusId={(user?.profile as any)?.campus_id} />
                         ) : activeSection === 'experiences' ? (
                             <div className="space-y-4">
                                 <h3 className="text-2xl font-black">Archive</h3>
@@ -212,6 +264,7 @@ export default function PlacementHub() {
                 </div>
             </div>
 
+            {showJobForm && <JobListingForm onClose={() => setShowJobForm(false)} onSaved={() => { setShowJobForm(false); setActiveSection('jobs'); }} userId={user?.id || ''} campusId={(user?.profile as any)?.campus_id} />}
             {selectedExp && (
                 <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
                     <div className="glass-card p-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">

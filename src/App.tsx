@@ -21,6 +21,8 @@ const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
 const CareerOverview = lazy(() => import('./pages/placement/CareerOverview'));
 const DeveloperPage = lazy(() => import('./pages/settings/DeveloperPage'));
 const BugReportPage = lazy(() => import('./pages/settings/BugReportPage'));
+const StatusPage = lazy(() => import('./pages/status/StatusPage'));
+const UserProfilePage = lazy(() => import('./pages/profile/UserProfilePage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
@@ -97,8 +99,10 @@ export default function App() {
           <Route path="study" element={<StudyDashboard />} />
           <Route path="placement" element={<PlacementHub />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="profile/:userId" element={<UserProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="career-overview" element={<CareerOverview />} />
+          <Route path="status" element={<StatusPage />} />
 
           {/* Settings sub-routes */}
           <Route path="settings/developer" element={<DeveloperPage />} />

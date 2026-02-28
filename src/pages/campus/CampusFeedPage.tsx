@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@insforge/react';
 import { insforge } from '../../lib/insforge';
+import { useAppStore } from '../../stores/appStore';
 import type { Post } from '../../types';
 import {
     TrendingUp,
@@ -24,6 +25,7 @@ import {
     Image,
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
+import { seedCampusFeed } from '../../services/feedSeedService';
 
 const categories = [
     { key: 'all', label: 'All Updates', icon: Sparkles, color: 'text-white' },
@@ -39,11 +41,42 @@ const categories = [
 
 export default function CampusFeedPage() {
     const { user } = useUser();
+    const { showToast } = useAppStore();
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('all');
     const [showComposer, setShowComposer] = useState(false);
     const [trending, setTrending] = useState<string[]>([]);
+    const [seeding, setSeeding] = useState(false);
+
+    const handleInviteFriends = () => {
+        const link = `${window.location.origin}/login?ref=${user?.profile?.referral_code || user?.id || ''}`;
+        navigator.clipboard.writeText(link);
+        showToast('Referral link copied! Share with friends.', 'success');
+    };
+
+    const handleSeedFeed = async () => {
+        let campusId = (user?.profile as any)?.campus_id;
+        if (!campusId) {
+            const { data: campuses } = await insforge.database.from('campuses').select('id').limit(1);
+            campusId = campuses?.[0]?.id;
+        }
+        if (!campusId) {
+            showToast('No campus found. Set campus in profile first.', 'info');
+            return;
+        }
+        if (!user?.id) return;
+        setSeeding(true);
+        try {
+            const { ok } = await seedCampusFeed(campusId, user.id, 50);
+            showToast(`Seeded ${ok} posts! Refresh to see them.`, 'success');
+            loadPosts();
+        } catch {
+            showToast('Seeding failed. Try again.', 'error');
+        } finally {
+            setSeeding(false);
+        }
+    };
 
     useEffect(() => {
         loadPosts();
@@ -115,7 +148,12 @@ export default function CampusFeedPage() {
                     <div className="glass-card p-5 bg-gradient-to-br from-brand-600/20 to-purple-600/20 shadow-glow-lg border-brand-500/20">
                         <h4 className="font-bold text-white mb-2">Campus Pioneer</h4>
                         <p className="text-xs text-brand-200/70 mb-4 leading-relaxed">Refer 5 friends to unlock the exclusive Campus Pioneer badge and 500 XP!</p>
-                        <button className="w-full btn-primary py-2 text-xs rounded-lg">Invite Friends</button>
+                        <button onClick={handleInviteFriends} className="w-full btn-primary py-2 text-xs rounded-lg active:scale-95 transition-all">Invite Friends</button>
+                    </div>
+                    <div className="glass-card p-5 border border-campus-border/40">
+                        <h4 className="font-bold text-white mb-2">Demo Feed</h4>
+                        <p className="text-xs text-campus-muted mb-4">Add sample posts to explore categories.</p>
+                        <button onClick={handleSeedFeed} disabled={seeding} className="w-full btn-secondary py-2 text-xs rounded-lg disabled:opacity-50">{seeding ? 'Seeding...' : 'Seed Sample Posts'}</button>
                     </div>
                 </aside>
 
@@ -145,85 +183,62 @@ export default function CampusFeedPage() {
 
                     {/* Posts List */}
                     {loading ? (
-                        <div className="space-y-6">
-                            {[1, 2].map(i => <div key={i} className="h-96 w-full glass-card animate-pulse" />)}
+                        <div className="space-y-8">
+                            {[1, 2].map(i => <div key={i} className="h-48 w-full glass-card animate-pulse rounded-[24px]" />)}
                         </div>
                     ) : (
-                        posts.map((post, idx) => (
-                            <article key={post.id} className="glass-card overflow-hidden animate-slide-up group" style={{ animationDelay: `${idx * 100}ms` }}>
-                                {/* Post Header */}
-                                <div className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-500 via-purple-500 to-pink-500 p-[2px]">
-                                                <div className="w-full h-full rounded-full bg-campus-dark flex items-center justify-center overflow-hidden border-2 border-campus-dark">
-                                                    {post.author?.avatar_url ? <img src={post.author.avatar_url} className="w-full h-full object-cover" /> : <span className="font-bold text-sm">{post.author?.display_name?.charAt(0) || '?'}</span>}
+                        <div className="space-y-8 pb-20">
+                            {posts.map((post, idx) => (
+                                <article key={post.id} className="glass-card overflow-hidden animate-slide-up group rounded-[24px] border border-white/[0.04] shadow-card hover:shadow-card-hover transition-shadow" style={{ animationDelay: `${idx * 50}ms` }}>
+                                    <div className="p-5 flex items-center justify-between pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative shrink-0">
+                                                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-brand-500 via-purple-500 to-brand-500 p-[2px]">
+                                                    <div className="w-full h-full rounded-full bg-campus-card flex items-center justify-center overflow-hidden border-2 border-campus-card">
+                                                        {post.author?.avatar_url ? <img src={post.author.avatar_url} className="w-full h-full object-cover" /> : <span className="font-bold text-sm text-brand-400">{post.author?.display_name?.charAt(0) || '?'}</span>}
+                                                    </div>
                                                 </div>
+                                                {post.is_anonymous && <div className="absolute -bottom-1 -right-1 bg-pink-500 rounded-full p-1 border-2 border-campus-card text-white"><Eye size={8} /></div>}
                                             </div>
-                                            {post.is_anonymous && <div className="absolute -bottom-1 -right-1 bg-gray-700 rounded-full p-1 border border-campus-dark"><Eye size={8} /></div>}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="text-sm font-bold hover:text-brand-400 cursor-pointer transition-colors">{post.is_anonymous ? 'Anonymous' : (post.author?.display_name || 'Unknown')}</h4>
-                                                <span className="w-1 h-1 rounded-full bg-campus-muted/50"></span>
-                                                <span className="text-[11px] text-campus-muted uppercase font-bold tracking-tighter text-brand-400/80">#{post.category}</span>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-[15px] font-bold hover:text-brand-400 cursor-pointer transition-colors max-w-[150px] truncate">{post.is_anonymous ? 'Anonymous' : (post.author?.display_name || 'Unknown')}</h4>
+                                                    <span className="w-1 h-1 rounded-full bg-campus-muted/50"></span>
+                                                    <span className="text-[11px] bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-tighter shrink-0">{post.category}</span>
+                                                </div>
+                                                <p className="text-[11px] text-campus-muted flex items-center gap-1.5 mt-0.5 font-medium">
+                                                    <MapPin size={10} className="text-campus-muted/70" /> {post.author?.branch || 'Campus Hub'} • {new Date(post.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                </p>
                                             </div>
-                                            <p className="text-[10px] text-campus-muted flex items-center gap-1">
-                                                <MapPin size={8} /> {post.author?.branch || 'Campus Hub'} • {new Date(post.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                            </p>
                                         </div>
-                                    </div>
-                                    <button className="p-2 hover:bg-white/5 rounded-full transition-colors opacity-50 hover:opacity-100">
-                                        <MoreHorizontal size={20} />
-                                    </button>
-                                </div>
-
-                                {/* Post Content */}
-                                <div className="px-5 pb-3">
-                                    {post.title && <h3 className="font-bold mb-2 text-white/95">{post.title}</h3>}
-                                    <p className="text-sm text-white/80 leading-relaxed">{post.content}</p>
-                                </div>
-
-                                {/* Media */}
-                                {post.media_urls?.length > 0 && (
-                                    <div className="aspect-square w-full bg-black/20 relative cursor-pointer group">
-                                        <img src={post.media_urls[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" />
-                                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors"></div>
-                                    </div>
-                                )}
-
-                                {/* Post Actions (Instagram style) */}
-                                <div className="p-4 flex flex-col gap-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center gap-1">
-                                                <button className="hover:scale-110 active:scale-95 transition-all text-brand-400">
-                                                    <ArrowUp size={24} />
-                                                </button>
-                                                <span className="text-sm font-bold">{post.upvotes - post.downvotes}</span>
-                                                <button className="hover:scale-110 active:scale-95 transition-all text-campus-muted">
-                                                    <ArrowDown size={24} />
-                                                </button>
-                                            </div>
-                                            <button className="hover:scale-110 transition-transform">
-                                                <MessageCircle size={24} className="text-white" />
-                                            </button>
-                                            <button className="hover:scale-110 transition-transform">
-                                                <Share2 size={24} className="text-white" />
-                                            </button>
-                                        </div>
-                                        <button className="hover:scale-110 transition-transform">
-                                            <Bookmark size={24} />
+                                        <button className="p-2 hover:bg-white/5 rounded-full transition-colors text-campus-muted hover:text-white shrink-0">
+                                            <MoreHorizontal size={20} />
                                         </button>
                                     </div>
 
-                                    <div className="text-xs">
-                                        <span className="font-bold">Liked by {Math.floor(Math.random() * 50)} peers</span>
-                                        <p className="text-campus-muted mt-1 cursor-pointer">View all {post.comment_count || 0} comments</p>
+                                    {/* Post Content */}
+                                    <div className="px-5 pb-4">
+                                        {post.title && <h3 className="text-xl font-black mb-2 text-white tracking-tight leading-tight">{post.title}</h3>}
+                                        <p className="text-base text-white/80 leading-relaxed font-medium whitespace-pre-wrap">
+                                            {post.content.split(/(#\w+)/g).map((part, i) =>
+                                                part.startsWith('#') ? <span key={i} className="text-brand-400 font-semibold hover:underline cursor-pointer">{part}</span> : part
+                                            )}
+                                        </p>
                                     </div>
-                                </div>
-                            </article>
-                        ))
+
+                                    {/* Media */}
+                                    {post.media_urls?.length > 0 && (
+                                        <div className="aspect-square w-full bg-black/20 relative cursor-pointer group">
+                                            <img src={post.media_urls[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+                                            <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors"></div>
+                                        </div>
+                                    )}
+
+                                    {/* Post Actions */}
+                                    <PostActions post={post} onVote={() => loadPosts()} showToast={showToast} />
+                                </article>
+                            ))}
+                        </div>
                     )}
                 </main>
 
@@ -259,11 +274,11 @@ export default function CampusFeedPage() {
                                             <p className="text-[10px] text-brand-400 font-bold">⭐ 2.4k XP</p>
                                         </div>
                                     </div>
-                                    <button className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-1 rounded-full font-bold transition-all">Follow</button>
+                                    <button onClick={() => showToast('Followed!', 'success')} className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-1 rounded-full font-bold transition-all active:scale-95">Follow</button>
                                 </div>
                             ))}
                         </div>
-                        <button className="w-full mt-6 py-2 text-[11px] font-bold text-campus-muted hover:text-white transition-colors">See Leaderboard</button>
+                        <button onClick={() => showToast('Leaderboard coming soon!', 'info')} className="w-full mt-6 py-2 text-[11px] font-bold text-campus-muted hover:text-white transition-colors">See Leaderboard</button>
                     </div>
 
                     <footer className="px-4 text-[10px] text-campus-muted/40 space-y-2">
@@ -277,6 +292,56 @@ export default function CampusFeedPage() {
 
             {/* Post Composer handled separately or via MainLayout Create button */}
             {showComposer && <PostComposer onClose={() => setShowComposer(false)} userId={user?.id || ''} onCreated={loadPosts} />}
+        </div>
+    );
+}
+
+// Post actions: like/dislike, comment, share, bookmark
+function PostActions({ post, onVote, showToast }: { post: Post; onVote: () => void; showToast: (m: string, t: 'success'|'error'|'info') => void }) {
+    const handleUpvote = async () => {
+        try {
+            await insforge.database.from('posts').update({
+                upvotes: (post.upvotes || 0) + 1,
+                updated_at: new Date().toISOString(),
+            }).eq('id', post.id);
+            showToast('Upvoted!', 'success');
+            onVote();
+        } catch { showToast('Vote failed', 'error'); }
+    };
+    const handleDownvote = async () => {
+        try {
+            await insforge.database.from('posts').update({
+                downvotes: (post.downvotes || 0) + 1,
+                updated_at: new Date().toISOString(),
+            }).eq('id', post.id);
+            showToast('Downvoted', 'info');
+            onVote();
+        } catch { showToast('Vote failed', 'error'); }
+    };
+    const handleShare = () => {
+        const url = `${window.location.origin}/app/feed?post=${post.id}`;
+        navigator.clipboard.writeText(url);
+        showToast('Link copied! Share anywhere.', 'success');
+    };
+    return (
+        <div className="p-5 pt-2 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 bg-campus-dark/50 rounded-full px-3 py-1.5 text-sm font-bold border border-white/[0.03]">
+                    <button onClick={handleUpvote} className="hover:scale-110 active:scale-95 transition-all text-brand-400 p-1"><ArrowUp size={16} strokeWidth={2.5} /></button>
+                    <span className="min-w-[20px] text-center">{post.upvotes - post.downvotes}</span>
+                    <button onClick={handleDownvote} className="hover:scale-110 active:scale-95 transition-all text-campus-muted hover:text-red-400 p-1"><ArrowDown size={16} strokeWidth={2.5} /></button>
+                </div>
+                <button onClick={() => showToast('Comments coming soon!', 'info')} className="flex items-center gap-2 group p-2 hover:bg-white/5 rounded-full transition-colors">
+                    <MessageCircle size={20} className="text-campus-muted group-hover:text-brand-400 transition-colors" />
+                    <span className="text-sm font-bold text-campus-muted group-hover:text-white">{post.comment_count || 0}</span>
+                </button>
+                <button onClick={handleShare} className="p-2 hover:bg-white/5 rounded-full text-campus-muted hover:text-white transition-colors">
+                    <Share2 size={18} />
+                </button>
+            </div>
+            <button onClick={() => showToast('Saved!', 'success')} className="p-2 hover:bg-white/5 rounded-full text-campus-muted hover:text-brand-400 transition-colors">
+                <Bookmark size={20} />
+            </button>
         </div>
     );
 }
@@ -330,7 +395,7 @@ function PostComposer({ onClose, userId, onCreated }: { onClose: () => void; use
 
                     <textarea
                         className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-sm focus:border-brand-500 transition-all outline-none min-h-[160px] resize-none"
-                        placeholder="What's happening? Share events, questions or market items..."
+                        placeholder="What's happening? Use #tags for topics. Share events, questions, or market items..."
                         autoFocus
                         value={content}
                         onChange={e => setContent(e.target.value)}

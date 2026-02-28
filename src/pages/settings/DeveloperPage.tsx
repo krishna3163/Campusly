@@ -79,7 +79,14 @@ export default function DeveloperPage() {
                             className="glass-card px-8 py-3 hover:bg-white/5 active:scale-95 transition-all flex items-center gap-2 text-white font-bold"
                         >
                             <Bug size={18} className="text-red-400" />
-                            Report Issue
+                            Report Bug
+                        </button>
+                        <button
+                            onClick={() => navigate('/app/settings/bug-report?type=suggestion')}
+                            className="glass-card px-8 py-3 hover:bg-white/5 active:scale-95 transition-all flex items-center gap-2 text-white font-bold border border-brand-500/30"
+                        >
+                            <Sparkles size={18} className="text-brand-400" />
+                            Suggest Feature
                         </button>
                     </div>
                 </div>

@@ -2,52 +2,24 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@insforge/react';
 import { insforge } from '../../lib/insforge';
 import type { Assignment, Exam, Note, Conversation } from '../../types';
+import { useAppStore } from '../../stores/appStore';
 import {
-    FileText,
     Plus,
-    FolderOpen,
-    GraduationCap,
     CheckCircle2,
-    Timer,
-    TrendingUp,
-    Sparkles,
-    Trash2,
     X,
-    Play,
-    Pause,
-    RotateCcw,
-    Users,
+    Search,
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 
 export default function StudyDashboard() {
     const { user } = useUser();
-    const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'assignments' | 'exams'>('overview');
+    const { examMode, setExamMode, showToast } = useAppStore();
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
     const [notes, setNotes] = useState<Note[]>([]);
     const [myGroups, setMyGroups] = useState<Conversation[]>([]);
-    const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState<'assignment' | 'exam' | null>(null);
-    const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-
-    useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (isTimerRunning && pomodoroTime > 0) {
-            interval = setInterval(() => setPomodoroTime(t => t - 1), 1000);
-        } else if (pomodoroTime === 0) {
-            setIsTimerRunning(false);
-            new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => null);
-        }
-        return () => clearInterval(interval);
-    }, [isTimerRunning, pomodoroTime]);
-
-    const formatTime = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    };
+    const [searchNotes, setSearchNotes] = useState('');
 
     useEffect(() => {
         if (user?.id) loadData();
@@ -55,23 +27,17 @@ export default function StudyDashboard() {
 
     const loadData = async () => {
         if (!user?.id) return;
-        setLoading(true);
         try {
-            // Get joined groups
+            // Get joined groups for Add Task/Exam scope
             const { data: mData } = await insforge.database.from('conversation_members').select('conversation_id').eq('user_id', user.id);
             const groupIds = mData?.map(m => m.conversation_id) || [];
 
-            // Build filter for personal + groups
-            // In SQL: (user_id = ? OR conversation_id IN (...))
-            const filter = groupIds.length > 0
-                ? `user_id.eq.${user.id},conversation_id.in.(${groupIds.join(',')})`
-                : `user_id.eq.${user.id}`;
-
+            // Fetch by user_id only (notes/assignments/exams may not have conversation_id in schema)
             const [assignRes, examRes, noteRes, groupRes] = await Promise.all([
-                insforge.database.from('assignments').select('*').or(filter),
-                insforge.database.from('exams').select('*').or(filter),
-                insforge.database.from('notes').select('*').or(filter).order('created_at', { ascending: false }),
-                insforge.database.from('conversations').select('*').in('id', groupIds)
+                insforge.database.from('assignments').select('*').eq('user_id', user.id),
+                insforge.database.from('exams').select('*').eq('user_id', user.id),
+                insforge.database.from('notes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+                groupIds.length > 0 ? insforge.database.from('conversations').select('*').in('id', groupIds) : Promise.resolve({ data: [] })
             ]);
 
             if (assignRes.data) {
@@ -81,7 +47,7 @@ export default function StudyDashboard() {
             }
             if (noteRes.data) setNotes(noteRes.data as Note[]);
             if (groupRes.data) setMyGroups(RankingEngine.rankGroups(groupRes.data as Conversation[]));
-        } catch (err) { } finally { setLoading(false); }
+        } catch (err) { }
     };
 
     const getDaysUntil = (dateStr: string) => {
@@ -100,210 +66,157 @@ export default function StudyDashboard() {
         await insforge.database.from('assignments').update({ status: newStatus }).eq('id', task.id);
     };
 
-    const handleDeleteNote = async (id: string) => {
-        setNotes(prev => prev.filter(n => n.id !== id));
-        await insforge.database.from('notes').delete().eq('id', id);
-    };
 
     return (
         <div className="h-full bg-campus-darker overflow-y-auto px-6 py-10">
             <div className="max-w-7xl mx-auto">
-                <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div>
-                        <div className="flex items-center gap-2 mb-2 text-brand-400">
-                            <Sparkles size={16} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Academic Companion</span>
-                        </div>
-                        <h1 className="text-3xl font-black text-white">Study Hub</h1>
-                        <p className="text-campus-muted text-sm mt-1">Synced with your private study and group channels.</p>
+                        <h1 className="text-2xl font-black text-white tracking-tight">Good Morning, {(user?.profile?.display_name as string)?.split(' ')[0] || 'Student'}</h1>
+                        <p className="text-campus-muted text-sm mt-1 font-medium">Ready to conquer your tasks today?</p>
                     </div>
-
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                         <button
-                            onClick={() => setShowAddModal('assignment')}
-                            className="btn-primary px-6 py-2.5 rounded-2xl flex items-center gap-2 text-sm active:scale-95 transition-all"
+                            onClick={() => setExamMode(!examMode)}
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border transition-all ${examMode ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-campus-card border-campus-border text-campus-muted hover:border-brand-500/30'}`}
                         >
-                            <Plus size={18} />
-                            <span>Add Item</span>
+                            <span className="text-sm font-bold">Exam Mode</span>
+                            <div className={`w-11 h-6 rounded-full transition-colors ${examMode ? 'bg-amber-500' : 'bg-campus-darker'}`}>
+                                <div className={`w-5 h-5 mt-0.5 rounded-full bg-white transition-transform ${examMode ? 'translate-x-6 ml-0.5' : 'translate-x-0.5'}`} />
+                            </div>
+                        </button>
+                        <button onClick={() => setShowAddModal('assignment')} className="btn-primary px-5 py-2.5 rounded-2xl flex items-center gap-2 text-sm shadow-glow font-bold active:scale-95">
+                            <Plus size={18} strokeWidth={2.5} /> Add Task
                         </button>
                     </div>
                 </header>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <div className="lg:col-span-3 space-y-6">
-                        <div className="glass-card p-6 bg-gradient-to-br from-brand-600/10 to-transparent">
-                            <h3 className="font-bold text-xs text-campus-muted uppercase mb-4 tracking-widest text-center">Semester Stats</h3>
-                            <div className="text-center">
-                                <p className="text-4xl font-black text-white">9.2</p>
-                                <p className="text-[10px] text-campus-muted font-bold uppercase mt-1">Current CGPA</p>
+                {/* Middle: 3 stat cards (removed CGPA) */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+                    <div className="bg-campus-card rounded-[16px] overflow-hidden border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
+                        <div className="p-6 flex flex-col items-center justify-center text-center">
+                            <p className="text-4xl font-black text-white mb-2 tracking-tight">{assignments.filter(a => a.status !== 'completed').length}</p>
+                            <p className="text-[11px] font-bold text-campus-muted uppercase tracking-wider">Pending Tasks</p>
+                        </div>
+                    </div>
+                    <div className="bg-campus-card rounded-[16px] overflow-hidden border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 to-amber-600"></div>
+                        <div className="p-6 flex flex-col items-center justify-center text-center">
+                            <p className="text-4xl font-black text-white mb-2 tracking-tight">{exams.length}</p>
+                            <p className="text-[11px] font-bold text-campus-muted uppercase tracking-wider">Upcoming Exams</p>
+                        </div>
+                    </div>
+                    <div className="bg-campus-card rounded-[16px] overflow-hidden border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-blue-600"></div>
+                        <div className="p-6 flex flex-col items-center justify-center text-center">
+                            <p className="text-4xl font-black text-white mb-2 tracking-tight">{notes.length}</p>
+                            <p className="text-[11px] font-bold text-campus-muted uppercase tracking-wider">Study Notes</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Exam Mode ON: Pomodoro */}
+                {examMode && <PomodoroWidget />}
+
+                {/* Notes search & list */}
+                <div className="mb-8">
+                    <div className="relative mb-4">
+                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-campus-muted" />
+                        <input type="text" value={searchNotes} onChange={e => setSearchNotes(e.target.value)} placeholder="Search notes from groups & channels..." className="w-full bg-campus-card/50 border border-campus-border/50 rounded-2xl pl-12 pr-4 py-3 text-white placeholder:text-campus-muted/60 outline-none focus:border-brand-500" />
+                    </div>
+                    {notes.length > 0 && (
+                        <div className="bg-campus-card rounded-[20px] p-5 border border-campus-border shadow-card">
+                            <h3 className="font-bold text-white mb-4">Study Notes</h3>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {notes
+                                    .filter(n => {
+                                        if (!searchNotes.trim()) return true;
+                                        const q = searchNotes.toLowerCase();
+                                        const title = (n.title || '').toLowerCase();
+                                        const content = (n.content || '').toLowerCase();
+                                        const subject = (n.subject || '').toLowerCase();
+                                        const tags = (n.tags || []).join(' ').toLowerCase();
+                                        return title.includes(q) || content.includes(q) || subject.includes(q) || tags.includes(q);
+                                    })
+                                    .map(n => (
+                                        <div key={n.id} className="flex items-center justify-between p-3 rounded-xl bg-campus-darker/50 border border-white/[0.03] hover:border-brand-500/30 transition-all">
+                                            <div>
+                                                <p className="font-bold text-white text-sm">{n.title}</p>
+                                                <p className="text-xs text-campus-muted">{n.subject || n.type}</p>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-campus-muted uppercase">{n.type}</span>
+                                        </div>
+                                    ))}
                             </div>
                         </div>
+                    )}
+                </div>
 
-                        <nav className="flex flex-col gap-1">
-                            {[
-                                { id: 'overview', label: 'Overview', icon: TrendingUp },
-                                { id: 'notes', label: 'Study Vault', icon: FolderOpen },
-                                { id: 'assignments', label: 'Assignments', icon: CheckCircle2 },
-                                { id: 'exams', label: 'Exam Tracker', icon: GraduationCap },
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-semibold text-sm ${activeTab === tab.id ? 'bg-white/10 text-white shadow-sm' : 'text-campus-muted hover:text-white hover:bg-white/5'}`}
-                                >
-                                    <tab.icon size={18} />
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </nav>
+                {/* Bottom: Upcoming tasks list */}
+                <div className="bg-campus-card rounded-[24px] p-6 lg:p-8 border border-campus-border shadow-card mb-8">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="font-bold text-lg text-white">Upcoming Tasks</h3>
+                        <button onClick={() => setShowAddModal('exam')} className="text-sm font-bold text-brand-400 hover:text-brand-300 transition-colors">Add Exam</button>
                     </div>
-
-                    <div className="lg:col-span-6 space-y-6">
-                        {loading ? (
-                            <div className="flex justify-center py-20 animate-pulse"><div className="w-10 h-10 border-2 border-brand-500 rounded-full border-t-transparent animate-spin" /></div>
-                        ) : activeTab === 'overview' ? (
-                            <>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="glass-card p-5 text-center">
-                                        <p className="text-xl font-black text-brand-400">{assignments.filter(a => a.status !== 'completed').length}</p>
-                                        <p className="text-[10px] text-campus-muted font-bold uppercase">Pending</p>
-                                    </div>
-                                    <div className="glass-card p-5 text-center">
-                                        <p className="text-xl font-black text-amber-500">{exams.length}</p>
-                                        <p className="text-[10px] text-campus-muted font-bold uppercase">Exams</p>
-                                    </div>
-                                    <div className="glass-card p-5 text-center">
-                                        <p className="text-xl font-black text-emerald-500">{notes.length}</p>
-                                        <p className="text-[10px] text-campus-muted font-bold uppercase">Notes</p>
+                    <div className="space-y-3">
+                        {assignments.length > 0 ? assignments.map(a => (
+                            <div key={a.id} className="flex items-center justify-between p-4 rounded-[16px] bg-campus-darker/50 border border-white/[0.03] hover:border-brand-500/30 hover:bg-white/[0.02] transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <button onClick={() => handleToggleTask(a)} className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all ${a.status === 'completed' ? 'bg-brand-500 text-white' : 'border-2 border-campus-muted/50 hover:border-brand-500 group-hover:bg-white/5'}`}>
+                                        {a.status === 'completed' && <CheckCircle2 size={16} strokeWidth={3} />}
+                                    </button>
+                                    <div>
+                                        <h4 className={`font-bold text-[15px] transition-colors tracking-tight ${a.status === 'completed' ? 'text-campus-muted line-through' : 'text-white'}`}>{a.title}</h4>
+                                        <p className="text-xs font-medium text-campus-muted mt-0.5">{a.subject} <span className="mx-1">•</span> {a.conversation_id ? 'Group' : 'Personal'}</p>
                                     </div>
                                 </div>
-
-                                <div className="glass-card p-6">
-                                    <h3 className="font-bold mb-6">Upcoming Milestones</h3>
-                                    <div className="space-y-4">
-                                        {assignments.map(a => (
-                                            <div key={a.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-brand-500/30 transition-all">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-2 h-2 rounded-full ${a.conversation_id ? 'bg-brand-400' : 'bg-campus-muted'}`} title={a.conversation_id ? 'Group Task' : 'Personal'}></div>
-                                                    <div>
-                                                        <h4 className="font-bold text-sm text-white/90">{a.title}</h4>
-                                                        <p className="text-[10px] text-campus-muted uppercase italic">{a.conversation_id ? 'Class Group' : 'Personal'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-[10px] font-black text-amber-500">{getDaysUntil(a.due_date || '')}</div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                <div className="shrink-0 text-right">
+                                    <div className="text-[11px] font-bold text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-full uppercase tracking-wide">{getDaysUntil(a.due_date || '')}</div>
                                 </div>
-                            </>
-                        ) : activeTab === 'notes' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
-                                {notes.map(note => (
-                                    <div key={note.id} className="glass-card p-5 group">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <FileText className="text-brand-400" size={24} />
-                                            <button onClick={() => handleDeleteNote(note.id)} className="opacity-0 group-hover:opacity-100 text-campus-muted hover:text-red-400 transition-opacity"><Trash2 size={16} /></button>
-                                        </div>
-                                        <h4 className="font-bold mb-1">{note.title}</h4>
-                                        <p className="text-xs text-campus-muted">{note.subject}</p>
-                                    </div>
-                                ))}
                             </div>
-                        ) : activeTab === 'assignments' ? (
-                            <div className="space-y-2 animate-fade-in">
-                                {assignments.map(a => (
-                                    <div key={a.id} className="glass-card p-4 flex items-center justify-between group">
-                                        <div className="flex items-center gap-4">
-                                            <button onClick={() => handleToggleTask(a)} className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${a.status === 'completed' ? 'bg-brand-500 border-brand-500 text-white' : 'border-white/20'}`}>
-                                                {a.status === 'completed' && <CheckCircle2 size={14} />}
-                                            </button>
-                                            <div>
-                                                <h4 className={`font-bold text-sm ${a.status === 'completed' ? 'text-campus-muted line-through' : 'text-white'}`}>{a.title}</h4>
-                                                <p className="text-[10px] text-campus-muted">{a.subject}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-[10px] font-bold text-amber-500">{getDaysUntil(a.due_date || '')}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="space-y-3 animate-fade-in">
-                                {exams.map(e => (
-                                    <div key={e.id} className="glass-card p-5 flex items-center justify-between border-l-2 border-amber-500">
-                                        <div>
-                                            <h4 className="font-bold">{e.title}</h4>
-                                            <p className="text-xs text-campus-muted">{e.subject} • {e.exam_type}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-lg font-black text-amber-500">{getDaysUntil(e.exam_date)}</p>
-                                            <p className="text-[10px] text-campus-muted">{new Date(e.exam_date).toLocaleDateString()}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                        )) : (
+                            <div className="text-center py-12 opacity-50">
+                                <CheckCircle2 size={48} className="mx-auto mb-4 text-emerald-500 opacity-60" strokeWidth={1.5} />
+                                <p className="font-bold text-white text-lg tracking-tight">All caught up!</p>
+                                <p className="text-sm font-medium text-campus-muted mt-1">You have no pending tasks to conquer.</p>
                             </div>
                         )}
                     </div>
-
-                    <div className="lg:col-span-3 space-y-6">
-                        <section className="glass-card p-6">
-                            <h3 className="font-bold text-xs uppercase text-campus-muted mb-6 tracking-widest flex items-center gap-2">
-                                <Timer size={14} className="text-brand-400" /> Today's Schedule
-                            </h3>
-                            <div className="space-y-4">
-                                {[
-                                    { time: '09:00', label: 'Data Structures', color: 'bg-blue-500' },
-                                    { time: '11:00', label: 'Cloud Computing', color: 'bg-purple-500' },
-                                    { time: '14:30', label: 'Lab Experiment', color: 'bg-emerald-500' },
-                                ].map(s => (
-                                    <div key={s.time} className="flex gap-4">
-                                        <div className="text-[10px] font-black text-campus-muted py-1">{s.time}</div>
-                                        <div className="flex-1 border-l border-white/5 pl-4 pb-2">
-                                            <div className={`px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-xs font-bold text-white/90`}>{s.label}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-
-                        <section className="glass-card p-6 border-brand-500/20 bg-brand-500/5">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="font-bold text-xs uppercase text-brand-400 tracking-widest flex items-center gap-2">
-                                    <Timer size={14} /> Pomodoro Timer
-                                </h3>
-                                <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-1 rounded-md">
-                                    <Users size={10} className="animate-pulse" /> 142 Active Now
-                                </div>
-                            </div>
-                            <div className="text-center py-4">
-                                <div className="text-5xl font-mono font-black text-white drop-shadow-[0_0_15px_rgba(59,130,252,0.5)] mb-6 tracking-wider">
-                                    {formatTime(pomodoroTime)}
-                                </div>
-                                <div className="flex items-center justify-center gap-4">
-                                    <button
-                                        onClick={() => setIsTimerRunning(!isTimerRunning)}
-                                        className="w-12 h-12 rounded-full bg-brand-600 hover:bg-brand-500 flex items-center justify-center text-white shadow-glow transition-all active:scale-95"
-                                    >
-                                        {isTimerRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
-                                    </button>
-                                    <button
-                                        onClick={() => { setIsTimerRunning(false); setPomodoroTime(25 * 60); }}
-                                        className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-campus-muted transition-all"
-                                    >
-                                        <RotateCcw size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
                 </div>
-            </div>
 
-            {showAddModal && <AddDialog type={showAddModal} onClose={() => setShowAddModal(null)} onCreated={loadData} userId={user?.id || ''} groups={myGroups} />}
+                {showAddModal && <AddDialog type={showAddModal} onClose={() => setShowAddModal(null)} onCreated={loadData} userId={user?.id || ''} groups={myGroups} showToast={showToast} />}
+            </div>
         </div>
     );
 }
 
-function AddDialog({ type, onClose, onCreated, userId, groups }: { type: 'assignment' | 'exam', onClose: () => void, onCreated: () => void, userId: string, groups: Conversation[] }) {
+function PomodoroWidget() {
+    const [totalSeconds, setTotalSeconds] = useState(25 * 60);
+    const [isRunning, setIsRunning] = useState(false);
+    useEffect(() => {
+        if (!isRunning) return;
+        const t = setInterval(() => setTotalSeconds(s => s <= 0 ? 25 * 60 : s - 1), 1000);
+        return () => clearInterval(t);
+    }, [isRunning]);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return (
+        <div className="mb-8 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-6">
+            <div>
+                <h3 className="font-bold text-amber-400">Pomodoro Focus</h3>
+                <p className="text-sm text-campus-muted">25 min work • 5 min break</p>
+            </div>
+            <div className="flex items-center gap-4">
+                <span className="text-3xl font-mono font-black text-white">{String(m).padStart(2,'0')}:{String(s).padStart(2,'0')}</span>
+                <button onClick={() => setIsRunning(!isRunning)} className={`px-4 py-2 rounded-xl text-sm font-bold ${isRunning ? 'bg-amber-500/30 text-amber-300' : 'bg-amber-500 text-white'}`}>{isRunning ? 'Pause' : 'Start'}</button>
+                <button onClick={() => { setTotalSeconds(25 * 60); setIsRunning(false); }} className="px-3 py-2 rounded-xl bg-white/5 text-campus-muted hover:text-white text-sm">Reset</button>
+            </div>
+        </div>
+    );
+}
+
+function AddDialog({ type, onClose, onCreated, userId, groups, showToast }: { type: 'assignment' | 'exam', onClose: () => void, onCreated: () => void, userId: string, groups: Conversation[], showToast: (m: string, t: 'success'|'error'|'info') => void }) {
     const [title, setTitle] = useState('');
     const [subject, setSubject] = useState('');
     const [date, setDate] = useState('');
@@ -311,19 +224,21 @@ function AddDialog({ type, onClose, onCreated, userId, groups }: { type: 'assign
 
     const handleSave = async () => {
         if (!title.trim()) return;
-        const payload = {
-            user_id: userId,
-            title,
-            subject,
-            conversation_id: selectedScope === 'personal' ? null : selectedScope
-        };
-        if (type === 'assignment') {
-            await insforge.database.from('assignments').insert({ ...payload, due_date: date || null, status: 'pending', priority: 'medium' });
-        } else {
-            await insforge.database.from('exams').insert({ ...payload, exam_date: date || new Date().toISOString(), exam_type: 'internal' });
+        try {
+            const payload = { user_id: userId, title, subject, conversation_id: selectedScope === 'personal' ? null : selectedScope };
+            if (type === 'assignment') {
+                const { error } = await insforge.database.from('assignments').insert([{ ...payload, due_date: date || null, status: 'pending', priority: 'medium' }]);
+                if (error) throw error;
+            } else {
+                const { error } = await insforge.database.from('exams').insert([{ ...payload, exam_date: date || new Date().toISOString(), exam_type: 'internal' }]);
+                if (error) throw error;
+            }
+            showToast(`${type === 'assignment' ? 'Task' : 'Exam'} added!`, 'success');
+            onCreated();
+            onClose();
+        } catch (err) {
+            showToast('Failed to add. Try again.', 'error');
         }
-        onCreated();
-        onClose();
     };
 
     return (

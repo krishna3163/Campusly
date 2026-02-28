@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser, UserButton } from '@insforge/react';
 import { insforge } from '../../lib/insforge';
+import { useAppStore } from '../../stores/appStore';
 import type { UserProfile } from '../../types';
 import {
     Settings,
@@ -33,6 +34,8 @@ export default function ProfilePage() {
     const [notesCount, setNotesCount] = useState<number | string>(0);
     const [showEditModal, setShowEditModal] = useState(false);
     const [activeSetting, setActiveSetting] = useState<string | null>(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (user?.id) { loadProfile(); loadStats(); }
@@ -52,6 +55,32 @@ export default function ProfilePage() {
         ]);
         setMessageCount(msgRes.count ?? 0);
         setNotesCount(noteRes.count ?? 0);
+    };
+
+    const handleChangeAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !user?.id || !file.type.startsWith('image/')) return;
+        setUploadingAvatar(true);
+        try {
+            const { data, error } = await insforge.storage.from('avatars').upload(`${user.id}_${Date.now()}.jpg`, file);
+            if (error) throw error;
+            const url = data?.url;
+            if (url) {
+                const { error: updErr } = await insforge.database.from('profiles').update({ avatar_url: url, updated_at: new Date().toISOString() }).eq('id', user.id);
+                if (!updErr) setProfile(p => p ? { ...p, avatar_url: url } : null);
+            }
+        } catch (_) {
+            try {
+                const { data, error } = await insforge.storage.from('attachments').upload(`avatars/${user.id}_${Date.now()}.jpg`, file);
+                if (!error && data?.url) {
+                    await insforge.database.from('profiles').update({ avatar_url: data.url, updated_at: new Date().toISOString() }).eq('id', user.id);
+                    setProfile(p => p ? { ...p, avatar_url: data.url } : null);
+                }
+            } catch (__) {}
+        } finally {
+            setUploadingAvatar(false);
+            e.target.value = '';
+        }
     };
 
     const handleActionClick = (id: string) => {
@@ -95,8 +124,9 @@ export default function ProfilePage() {
                     {/* Left Panel — Identity */}
                     <div className="lg:col-span-4 space-y-6">
                         <div className="glass-card p-8 flex flex-col items-center text-center">
+                            <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleChangeAvatar} />
                             <div className="relative mb-6">
-                                <div className="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-brand-500 to-purple-500 p-1 shadow-glow-lg group cursor-pointer" onClick={() => setShowEditModal(true)}>
+                                <div className="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-brand-500 to-purple-500 p-1 shadow-glow-lg group cursor-pointer relative" onClick={() => avatarInputRef.current?.click()}>
                                     <div className="w-full h-full rounded-[38px] bg-campus-dark flex items-center justify-center overflow-hidden border-4 border-campus-dark transition-transform group-hover:scale-95">
                                         {profile?.avatar_url ? (
                                             <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -104,9 +134,15 @@ export default function ProfilePage() {
                                             <span className="text-4xl font-black text-white">{profile?.display_name?.charAt(0) || 'U'}</span>
                                         )}
                                     </div>
-                                    <div className="absolute inset-0 bg-black/40 rounded-[38px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                    <div className="absolute inset-0 bg-black/40 rounded-[38px] opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white gap-1">
                                         <Camera size={24} />
+                                        <span className="text-[10px] font-bold">Change Photo</span>
                                     </div>
+                                    {uploadingAvatar && (
+                                        <div className="absolute inset-0 bg-black/60 rounded-[38px] flex items-center justify-center">
+                                            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className={`absolute bottom-2 right-2 w-6 h-6 rounded-full border-4 border-campus-dark ${isOnline ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]' : 'bg-gray-500'}`} />
                             </div>
@@ -261,6 +297,9 @@ export default function ProfilePage() {
 }
 
 function EditProfileDialog({ profile, onClose, onSaved }: { profile: UserProfile, onClose: () => void, onSaved: (p: UserProfile) => void }) {
+    const { user } = useUser();
+    const { showToast } = useAppStore();
+    const avatarInputRef = useRef<HTMLInputElement>(null);
     const [name, setName] = useState(profile.display_name);
     const [bio, setBio] = useState(profile.bio || '');
     const [branch, setBranch] = useState(profile.branch || '');
@@ -270,12 +309,21 @@ function EditProfileDialog({ profile, onClose, onSaved }: { profile: UserProfile
 
     const handleSave = async () => {
         setSaving(true);
+        const updates = { display_name: name, bio, branch, activity_status: activity, semester: parseInt(semester) || 1, updated_at: new Date().toISOString() };
+        const optimisticProfile = { ...profile, ...updates } as UserProfile;
+        onSaved(optimisticProfile);
         try {
-            const updates = { display_name: name, bio, branch, activity_status: activity, semester: parseInt(semester) || 1, updated_at: new Date().toISOString() };
-            const { data } = await insforge.database.from('profiles').update(updates).eq('id', profile.id).select().single();
-            if (data) onSaved(data as UserProfile);
+            const { data, error } = await insforge.database.from('profiles').update(updates).eq('id', profile.id).select().single();
+            if (error) throw error;
+            if (data) {
+                onSaved(data as UserProfile);
+                showToast('Profile updated successfully!', 'success');
+                onClose();
+            }
         } catch (err) {
             console.error(err);
+            showToast('Failed to update profile. Please try again.', 'error');
+            onSaved(profile);
         } finally {
             setSaving(false);
         }
@@ -289,6 +337,22 @@ function EditProfileDialog({ profile, onClose, onSaved }: { profile: UserProfile
                     <button onClick={onClose} className="text-campus-muted hover:text-white p-2 hover:bg-white/5 rounded-xl transition-all"><X size={24} /></button>
                 </div>
                 <div className="space-y-5">
+                    <div className="flex items-center gap-4">
+                        <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !user?.id || !file.type.startsWith('image/')) return;
+                            try {
+                                const { data, error } = await insforge.storage.from('avatars').upload(`${user.id}_${Date.now()}.jpg`, file);
+                                if (error) { const r = await insforge.storage.from('attachments').upload(`avatars/${user.id}_${Date.now()}.jpg`, file); if (!r.error && r.data?.url) { await insforge.database.from('profiles').update({ avatar_url: r.data.url, updated_at: new Date().toISOString() }).eq('id', user.id); onSaved({ ...profile, avatar_url: r.data.url } as UserProfile); showToast('Photo updated!', 'success'); } return; }
+                                if (data?.url) { await insforge.database.from('profiles').update({ avatar_url: data.url, updated_at: new Date().toISOString() }).eq('id', user.id); onSaved({ ...profile, avatar_url: data.url } as UserProfile); showToast('Photo updated!', 'success'); }
+                            } catch (_) {}
+                            e.target.value = '';
+                        }} />
+                        <button type="button" onClick={() => avatarInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+                            <Camera size={20} className="text-brand-400" />
+                            <span className="text-sm font-bold text-white">Change Profile Photo</span>
+                        </button>
+                    </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Full Identity</label>
                         <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 text-white" />

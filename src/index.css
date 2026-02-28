@@ -23,7 +23,7 @@
   }
 
   ::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
   }
 
   ::-webkit-scrollbar-track {
@@ -45,100 +45,123 @@
   ::selection {
     @apply bg-brand-500/30;
   }
+
+  /* Typography Scale */
+  h1 {
+    @apply text-[24px] font-bold leading-tight;
+  }
+
+  h2 {
+    @apply text-[20px] font-bold leading-snug;
+  }
+
+  .section-title {
+    @apply text-[18px] font-bold leading-snug;
+  }
+
+  body, button, input, textarea {
+    @apply text-[16px] leading-relaxed;
+  }
+
+  .caption, .text-caption {
+    @apply text-[13px] leading-normal;
+  }
 }
 
 @layer components {
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    @apply bg-white/[0.03] backdrop-blur-xl border border-white/5 rounded-2xl;
   }
 
   .glass-card {
-    @apply bg-campus-card/80 backdrop-blur-xl border border-campus-border/50 rounded-2xl;
+    @apply bg-campus-card/70 backdrop-blur-xl border border-campus-border/40 rounded-2xl transition-all duration-300;
   }
 
   .btn-primary {
-    @apply bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 px-6 rounded-xl
-    transition-all duration-200 active:scale-95 shadow-glow hover:shadow-glow-lg
-    disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+    @apply bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 
+    text-white font-semibold py-3 px-6 rounded-[14px] text-[16px]
+    transition-all duration-300 active:scale-95 shadow-elevation-2 hover:shadow-elevation-3
+    disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 animate-fade-in;
   }
 
   .btn-secondary {
-    @apply bg-campus-card hover:bg-campus-cardHover text-white font-medium py-3 px-6 
-    rounded-xl border border-campus-border transition-all duration-200 active:scale-95
-    disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-campus-card/60 hover:bg-campus-card/80 text-white font-medium py-3 px-6 
+    rounded-[14px] border border-campus-border/50 transition-all duration-300 active:scale-95
+    disabled:opacity-50 disabled:cursor-not-allowed shadow-elevation-1 animate-fade-in;
   }
 
   .btn-ghost {
-    @apply text-campus-muted hover:text-white hover:bg-white/5 font-medium py-2 px-4 
-    rounded-xl transition-all duration-200 active:scale-95;
+    @apply text-campus-muted hover:text-white hover:bg-white/[0.05] font-medium py-2 px-4 
+    rounded-[12px] transition-all duration-300 active:scale-95;
   }
 
   .btn-danger {
-    @apply bg-red-600/20 hover:bg-red-600/30 text-red-400 font-medium py-3 px-6 
-    rounded-xl border border-red-600/30 transition-all duration-200 active:scale-95;
+    @apply bg-red-600/15 hover:bg-red-600/25 text-red-400 font-medium py-3 px-6 
+    rounded-[14px] border border-red-600/30 transition-all duration-300 active:scale-95;
   }
 
   .input-field {
-    @apply w-full bg-campus-card border border-campus-border rounded-xl px-4 py-3
-    text-white placeholder:text-campus-muted/60 focus:border-brand-500 focus:ring-1 
-    focus:ring-brand-500/50 transition-all duration-200;
+    @apply w-full bg-campus-card/50 border border-campus-border/50 rounded-[12px] px-4 py-3
+    text-[16px] text-white placeholder:text-campus-muted/50 focus:border-brand-500 focus:ring-2 
+    focus:ring-brand-500/20 transition-all duration-300;
   }
 
   .input-field-sm {
-    @apply w-full bg-campus-card border border-campus-border rounded-lg px-3 py-2 text-sm
-    text-white placeholder:text-campus-muted/60 focus:border-brand-500 focus:ring-1 
-    focus:ring-brand-500/50 transition-all duration-200;
+    @apply w-full bg-campus-card/50 border border-campus-border/50 rounded-[10px] px-3 py-2.5 text-[14px]
+    text-white placeholder:text-campus-muted/50 focus:border-brand-500 focus:ring-2 
+    focus:ring-brand-500/20 transition-all duration-300;
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-semibold;
   }
 
   .badge-brand {
-    @apply badge bg-brand-500/20 text-brand-400 border border-brand-500/30;
+    @apply badge bg-brand-500/15 text-brand-400 border border-brand-500/25;
   }
 
   .badge-success {
-    @apply badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+    @apply badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/25;
   }
 
   .badge-warning {
-    @apply badge bg-amber-500/20 text-amber-400 border border-amber-500/30;
+    @apply badge bg-amber-500/15 text-amber-400 border border-amber-500/25;
   }
 
   .badge-danger {
-    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+    @apply badge bg-red-500/15 text-red-400 border border-red-500/25;
   }
 
   .badge-purple {
-    @apply badge bg-purple-500/20 text-purple-400 border border-purple-500/30;
+    @apply badge bg-purple-500/15 text-purple-400 border border-purple-500/25;
   }
 
+  /* Message Bubbles - Improved with animations */
   .chat-bubble-sent {
-    @apply bg-brand-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[85%]
-    shadow-sm;
+    @apply bg-gradient-to-br from-brand-600 to-brand-700 text-white rounded-[18px] rounded-br-[4px] 
+    px-4 py-3 max-w-[75%] shadow-elevation-2 animate-slide-up;
   }
 
   .chat-bubble-received {
-    @apply bg-campus-card text-white rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[85%]
-    border border-campus-border/50 shadow-sm;
+    @apply bg-campus-card/60 text-white rounded-[18px] rounded-bl-[4px] px-4 py-3 max-w-[75%]
+    border border-campus-border/40 shadow-elevation-1 animate-slide-up;
   }
 
   .card-interactive {
-    @apply glass-card p-4 transition-all duration-200 hover:bg-campus-cardHover/80 
-    hover:shadow-card-hover cursor-pointer active:scale-[0.98];
+    @apply glass-card p-5 transition-all duration-300 hover:bg-campus-card/80 
+    hover:shadow-elevation-3 cursor-pointer active:scale-[0.98] animate-fade-in;
   }
 
   .tab-active {
-    @apply text-brand-500 border-b-2 border-brand-500;
+    @apply text-brand-500 border-b-2 border-brand-500 animate-slide-down;
   }
 
   .tab-inactive {
-    @apply text-campus-muted hover:text-white transition-colors duration-200;
+    @apply text-campus-muted hover:text-white transition-colors duration-300;
   }
 
   .gradient-text {
-    @apply bg-gradient-to-r from-brand-400 via-purple-400 to-pink-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-brand-400 via-campus-accent to-pink-400 bg-clip-text text-transparent;
   }
 
   .shimmer {
@@ -147,8 +170,8 @@
   }
 
   .offline-banner {
-    @apply bg-amber-500/20 border border-amber-500/30 text-amber-300 px-4 py-2 
-    text-center text-sm font-medium;
+    @apply bg-amber-500/15 border border-amber-500/25 text-amber-300 px-4 py-3 
+    text-center text-[14px] font-medium rounded-lg;
   }
 
   .safe-bottom {
@@ -157,6 +180,66 @@
 
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* List Item Spacing - Minimum 16px between items */
+  .list-item-spaced {
+    @apply py-4 px-4 border-b border-campus-border/20 last:border-b-0 hover:bg-white/[0.02] transition-colors duration-300;
+  }
+
+  /* Conversation Item with proper spacing */
+  .conversation-item {
+    @apply min-h-[72px] p-4 rounded-[14px] hover:bg-campus-card/50 transition-all duration-300 
+    cursor-pointer animate-fade-in border border-transparent hover:border-campus-border/30;
+  }
+
+  /* Global Animation System - 250ms standard, cubic-bezier easing */
+  :root {
+    --transition-standard: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .transition-smooth {
+    transition: all var(--transition-standard);
+  }
+  .btn-press:active {
+    transform: scale(0.97);
+  }
+  .card-hover-lift {
+    transition: transform var(--transition-standard), box-shadow var(--transition-standard);
+  }
+  .card-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Smooth transitions for navigation */
+  .nav-item-smooth {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  /* Card with hover elevation */
+  .card-elevated {
+    @apply bg-campus-card/50 border border-campus-border/40 rounded-[14px] p-5 shadow-elevation-1 
+    hover:shadow-elevation-3 hover:bg-campus-card/70 transition-all duration-300 cursor-pointer;
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Smooth scroll behavior */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Enhanced focus states for accessibility */
+  button:focus-visible, a:focus-visible, input:focus-visible {
+    @apply outline-none ring-2 ring-brand-500/50 ring-offset-2 ring-offset-campus-darker;
   }
 }
 

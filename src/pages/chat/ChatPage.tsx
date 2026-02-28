@@ -19,20 +19,19 @@ import {
     FileText,
     Image as ImageIcon,
     Camera as CameraIcon,
-    Music,
-    User,
-    Calendar,
     Copy,
-    Forward,
     Pin,
-    Star,
-    Flag,
     Link,
-    BarChart2,
+    X,
+    Music,
+    MapPin,
+    BarChart3,
+    UserPlus,
+    FileArchive,
+    Square,
 } from 'lucide-react';
 import { useMediaUpload } from '../../hooks/useMediaUpload';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
-import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { getFriendshipStatus, sendFriendRequest } from '../../services/friendService';
 
 export default function ChatPage() {
     const { chatId } = useParams<{ chatId: string }>();
@@ -59,11 +58,12 @@ export default function ChatPage() {
     const [editingMessage, setEditingMessage] = useState<Message | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [openAttachmentMenu, setOpenAttachmentMenu] = useState(false);
-    const { isRecording, formattedTime, startRecording, stopRecording, cancelRecording } = useVoiceRecorder();
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+    const [showReactionPickerFor, setShowReactionPickerFor] = useState<string | null>(null);
     const [infoTab, setInfoTab] = useState<'info' | 'media' | 'docs' | 'links'>('info');
     const [messageInfoId, setMessageInfoId] = useState<string | null>(null);
+    const [otherUserId, setOtherUserId] = useState<string | null>(null);
+    const [friendship, setFriendship] = useState<'friends' | 'pending_sent' | 'pending_received' | 'none'>('none');
 
 
     const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -91,10 +91,14 @@ export default function ChatPage() {
                             .neq('user_id', user.id);
 
                         if (members?.[0]) {
+                            const uid = (members[0] as any).user_id;
+                            setOtherUserId(uid);
+                            const status = await getFriendshipStatus(user.id, uid);
+                            setFriendship(status);
                             const { data: profile } = await insforge.database
                                 .from('profiles')
                                 .select('*')
-                                .eq('id', (members[0] as any).user_id)
+                                .eq('id', uid)
                                 .single();
 
                             if (profile) {
@@ -104,6 +108,8 @@ export default function ChatPage() {
                             }
                         }
                     } else {
+                        setOtherUserId(null);
+                        setFriendship('friends');
                         setChatName((conv as any).name || 'Group Chat');
                         setChatAvatar((conv as any).avatar_url || '');
                     }
@@ -232,16 +238,6 @@ export default function ChatPage() {
         }
     };
 
-    const handleVoiceNoteStop = async () => {
-        const file = await stopRecording();
-        if (file) {
-            const url = await uploadFile(file, 'chat-media');
-            if (url) {
-                await sendMessage('Voice note', 'audio', url);
-            }
-        }
-    };
-
     const handleReaction = async (messageId: string, emoji: string) => {
         if (!user?.id) return;
         const { error } = await insforge.database.from('message_reactions').upsert({
@@ -292,7 +288,7 @@ export default function ChatPage() {
                         <ArrowLeft size={20} />
                     </button>
 
-                    <div className="relative group cursor-pointer" onClick={() => navigate(`/app/profile/${chatId}`)}>
+                    <div className="relative group cursor-pointer" onClick={() => otherUserId ? navigate(`/app/profile/${otherUserId}`) : undefined}>
                         {chatAvatar ? (
                             <img src={chatAvatar} className="w-10 h-10 rounded-full object-cover border border-white/[0.1] group-hover:scale-105 transition-transform" alt="" />
                         ) : (
@@ -303,7 +299,7 @@ export default function ChatPage() {
                         {isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-campus-dark" />}
                     </div>
 
-                    <div className="min-w-0 cursor-pointer" onClick={() => navigate(`/app/profile/${chatId}`)}>
+                    <div className="min-w-0 cursor-pointer" onClick={() => otherUserId && navigate(`/app/profile/${otherUserId}`)}>
                         <h2 className="font-bold text-sm truncate leading-tight group-hover:text-brand-400 transition-colors">{chatName || 'Loading Chat...'}</h2>
                         <p className="text-[10px] text-campus-muted font-medium uppercase tracking-wider">{isOnline ? 'Online now' : 'Away'}</p>
                     </div>
@@ -332,6 +328,7 @@ export default function ChatPage() {
                             <button onClick={() => setIsSearchOpen(true)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Search</button>
                             <button onClick={() => setIsInfoOpen(true)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Contact info</button>
                             <button onClick={() => alert("Select messages")} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Select messages</button>
+                            <button onClick={() => navigate('/app/settings')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Chat Settings</button>
                             <button onClick={() => alert("Muted notifications")} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Mute notifications</button>
                             <button onClick={() => alert("Disappearing messages")} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Disappearing messages</button>
                             <button onClick={() => alert("Chat Locked")} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors">Lock chat</button>
@@ -376,11 +373,11 @@ export default function ChatPage() {
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 px-10">
-                        <div className="w-16 h-16 rounded-3xl bg-white/[0.05] flex items-center justify-center mb-4">
+                        <div className="w-16 h-16 rounded-[16px] bg-white/[0.05] flex items-center justify-center mb-4">
                             <Send size={24} />
                         </div>
-                        <h3 className="text-lg font-bold mb-1">Encrypted Chat</h3>
-                        <p className="text-xs max-w-[200px]">Messages are secured with end-to-end encryption. Start typing below.</p>
+                        <h3 className="text-[18px] font-bold mb-1">Encrypted Chat</h3>
+                        <p className="text-[13px] max-w-[200px]">Messages are secured with end-to-end encryption. Start typing below.</p>
                     </div>
                 ) : (
                     messages
@@ -390,104 +387,122 @@ export default function ChatPage() {
                             const showAvatar = idx === 0 || messages[idx - 1].sender_id !== msg.sender_id;
 
                             return (
-                                <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} mb-1 animate-fade-in`}>
+                                <div key={msg.id} className={`flex items-end gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'} mb-4 animate-slide-up`}>
+                                    {/* Avatar */}
                                     <div
-                                        className="w-8 h-8 rounded-full bg-white/5 overflow-hidden flex-shrink-0 mb-1 border border-white/[0.05] cursor-pointer"
+                                        className="w-8 h-8 rounded-[10px] bg-white/[0.08] overflow-hidden flex-shrink-0 mb-1 border border-campus-border/50 cursor-pointer transition-all duration-300 hover:scale-110 hover:shadow-elevation-2"
                                         onClick={() => navigate(`/app/profile/${msg.sender_id}`)}
                                     >
                                         {showAvatar && (
                                             msg.sender?.avatar_url ? <img src={msg.sender.avatar_url} className="w-full h-full object-cover" alt="" /> :
-                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-white/10">{(msg.sender?.display_name as string)?.charAt(0) || 'U'}</div>
+                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-brand-500/20 text-brand-400">{(msg.sender?.display_name as string)?.charAt(0) || 'U'}</div>
                                         )}
                                     </div>
+
+                                    {/* Message Bubble */}
                                     <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%] lg:max-w-[60%] group relative`}>
-                                        <div className={`relative px-4 py-2.5 rounded-2xl shadow-sm text-sm ${isMe ? 'bg-brand-600 text-white rounded-br-sm' : 'bg-campus-dark border border-white/[0.05] text-white rounded-bl-sm'
-                                            }`}>
+                                        {/* Message Container */}
+                                        <div className={`relative rounded-[18px] shadow-elevation-1 group-hover:shadow-elevation-2 transition-all duration-300 text-[15px] leading-relaxed ${isMe 
+                                            ? 'bg-gradient-to-br from-brand-600 to-brand-700 text-white rounded-br-[4px]' 
+                                            : 'bg-campus-card/70 text-white rounded-bl-[4px] border border-campus-border/40'
+                                        }`}>
+                                            {/* Reply Reference */}
                                             {msg.reply_to && (
-                                                <div className="mb-2 p-2 rounded-lg bg-black/20 border-l-2 border-white/20 text-[11px] opacity-80 line-clamp-1">
-                                                    Replying to message...
+                                                <div className="px-4 pt-3 pb-2 border-b border-white/10 border-l-4 border-l-brand-400 text-[12px] opacity-80">
+                                                    <p className="text-campus-muted/90 font-medium">Replying to message</p>
                                                 </div>
                                             )}
 
-                                            {msg.type === 'image' && msg.media_url && (
-                                                <img src={msg.media_url} className="rounded-lg mb-2 max-h-64 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" alt="" />
-                                            )}
-                                            {msg.type === 'video' && msg.media_url && (
-                                                <video src={msg.media_url} controls className="rounded-lg mb-2 max-h-64 w-full object-cover" />
-                                            )}
+                                            {/* Message Content */}
+                                            <div className="px-4 py-3">
+                                                {msg.type === 'image' && msg.media_url && (
+                                                    <img src={msg.media_url} className="rounded-[12px] mb-2 max-h-64 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity shadow-elevation-2" alt="" />
+                                                )}
+                                                {msg.type === 'video' && msg.media_url && (
+                                                    <video src={msg.media_url} controls className="rounded-[12px] mb-2 max-h-64 w-full object-cover shadow-elevation-2" />
+                                                )}
 
-                                            {msg.type === 'document' && msg.media_url && (
-                                                <div onClick={() => window.open(msg.media_url, '_blank')} className="flex items-center gap-3 p-3 bg-black/10 rounded-xl cursor-pointer hover:bg-black/20 transition-colors mb-2 border border-white/5">
-                                                    <div className="p-2.5 bg-brand-500/20 text-brand-400 rounded-lg"><FileText size={20} /></div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-bold text-sm truncate">{msg.content}</p>
-                                                        <p className="text-[10px] text-campus-muted uppercase">Document</p>
+                                                {msg.type === 'document' && msg.media_url && (
+                                                    <div onClick={() => window.open(msg.media_url, '_blank')} className="flex items-center gap-3 p-3 bg-black/10 rounded-[10px] cursor-pointer hover:bg-black/20 transition-colors mb-2 border border-white/5">
+                                                        <div className="p-2 bg-brand-500/20 text-brand-400 rounded-[8px]"><FileText size={18} /></div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-[13px] truncate">{msg.content}</p>
+                                                            <p className="text-[11px] text-campus-muted/80 uppercase">Document</p>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
 
-                                            {msg.type === 'audio' && msg.media_url && (
-                                                <div className="flex items-center gap-3 p-2 bg-black/10 rounded-xl mb-2 min-w-[200px] border border-white/5">
-                                                    <div className="p-2 bg-brand-500/20 text-brand-400 rounded-full shrink-0"><Mic size={16} /></div>
-                                                    <audio src={msg.media_url} controls className="h-8 max-w-[200px]" />
-                                                </div>
-                                            )}
+                                                {msg.type === 'audio' && msg.media_url && (
+                                                    <div className="flex items-center gap-2 p-2 bg-black/10 rounded-[10px] mb-2 border border-white/5">
+                                                        <div className="p-2 bg-brand-500/20 text-brand-400 rounded-full shrink-0"><Mic size={14} /></div>
+                                                        <audio src={msg.media_url} controls className="h-8 flex-1 max-w-[200px]" />
+                                                    </div>
+                                                )}
 
-                                            {msg.type !== 'document' && msg.type !== 'audio' && (
-                                                <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
-                                            )}
+                                                {msg.type !== 'document' && msg.type !== 'audio' && (
+                                                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                                                )}
 
-                                            {msg.is_edited && <span className="text-[10px] opacity-40 ml-1 italic">(edited)</span>}
+                                                {msg.is_edited && <span className="text-[11px] opacity-50 ml-1 italic">(edited)</span>}
+                                            </div>
 
                                             {/* Quick Reaction Bar */}
-                                            <div className={`absolute top-1/2 -translate-y-1/2 ${isMe ? '-left-[220px]' : '-right-[220px]'} hidden group-hover:flex items-center gap-1 bg-campus-dark/95 backdrop-blur-xl border border-white/10 rounded-full py-1.5 px-3 shadow-2xl z-40 animate-scale-in`}>
+                                            <div className={`absolute top-1/2 -translate-y-1/2 ${isMe ? '-left-[200px]' : '-right-[200px]'} hidden group-hover:flex items-center gap-1 bg-campus-card/95 backdrop-blur-lg border border-campus-border/60 rounded-[12px] py-2 px-3 shadow-elevation-3 z-40 animate-scale-in`}>
                                                 {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
-                                                    <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-xl transition-transform hover:scale-125 hover:-translate-y-1">{emoji}</button>
+                                                    <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }} className="w-7 h-7 flex items-center justify-center hover:bg-white/[0.15] rounded-[6px] text-lg transition-all duration-200 hover:scale-125 hover:-translate-y-1">{emoji}</button>
                                                 ))}
                                             </div>
 
-                                            {/* Action Dropdown Toggle */}
+                                            {/* Action Button */}
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id); }}
-                                                className={`absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-md rounded-full m-1 text-white shadow-xl hover:bg-black/60 z-30`}
+                                                className={`absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-black/30 hover:bg-black/50 backdrop-blur-md rounded-[6px] text-white shadow-elevation-2 z-30 animate-fade-in`}
                                             >
                                                 <ChevronDown size={14} />
                                             </button>
 
                                             {/* Action Dropdown Menu */}
                                             {openMessageMenuId === msg.id && (
-                                                <div className={`absolute top-8 ${isMe ? 'right-0' : 'left-0'} w-48 bg-campus-dark/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col py-1.5 animate-scale-in`}>
-                                                    <button onClick={() => { setReplyTo(msg); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Reply</span> <Reply size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { navigator.clipboard.writeText(msg.content || ''); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Copy</span> <Copy size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>React</span> <Smile size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Forward</span> <Forward size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Pin</span> <Pin size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Star</span> <Star size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { setMessageInfoId(msg.id); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Info</span> <Info size={16} className="opacity-60" /></button>
-                                                    <button onClick={() => { setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 flex items-center justify-between text-white transition-colors"><span>Report</span> <Flag size={16} className="opacity-60" /></button>
+                                                <div className={`absolute top-10 ${isMe ? 'right-0' : 'left-0'} w-44 bg-campus-card/95 backdrop-blur-lg border border-campus-border/60 rounded-[12px] shadow-elevation-3 z-50 overflow-hidden flex flex-col py-1 animate-scale-in`}>
+                                                    <button onClick={() => { setReplyTo(msg); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] hover:bg-white/[0.1] flex items-center justify-between text-white transition-colors"><span>Reply</span> <Reply size={14} className="opacity-60" /></button>
+                                                    <button onClick={() => { navigator.clipboard.writeText(msg.content || ''); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] hover:bg-white/[0.1] flex items-center justify-between text-white transition-colors"><span>Copy</span> <Copy size={14} className="opacity-60" /></button>
+                                                    <button onClick={() => { setShowReactionPickerFor(msg.id); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] hover:bg-white/[0.1] flex items-center justify-between text-white transition-colors"><span>React</span> <Smile size={14} className="opacity-60" /></button>
                                                     {isMe && (
                                                         <>
-                                                            <div className="h-[1px] bg-white/[0.05] my-1 mx-2"></div>
-                                                            <button onClick={() => { deleteMessage(msg.id); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-red-500/10 text-red-500 flex items-center justify-between transition-colors"><span>Delete</span> <Trash2 size={16} /></button>
+                                                            <div className="h-px bg-white/[0.05] my-1"></div>
+                                                            <button onClick={() => { deleteMessage(msg.id); setOpenMessageMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] hover:bg-red-500/10 text-red-400 transition-colors"><span>Delete</span></button>
                                                         </>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="flex items-center gap-2 mt-1 px-1">
-                                            <div className="flex items-center gap-1 opacity-40">
-                                                <span className="text-[9px] font-medium">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                {isMe && <CheckCheck size={12} />}
+                                        {/* Timestamp and Reactions */}
+                                        <div className="flex items-center gap-2 mt-2 px-1 text-[11px]">
+                                            <span className="text-campus-muted/70">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            {isMe && <CheckCheck size={13} className="text-brand-400/80" />}
+                                        </div>
+
+                                        {/* Reactions Display */}
+                                        {msg.reactions && typeof msg.reactions === 'object' && Object.keys(msg.reactions).length > 0 && (
+                                            <div className="flex items-center gap-1 mt-2 flex-wrap">
+                                                {Object.entries(msg.reactions).map(([emoji, count]) => (
+                                                    <span key={emoji} className="text-[11px] bg-campus-card/70 border border-campus-border/40 rounded-full px-2 py-0.5 hover:bg-campus-card/90 transition-all cursor-pointer">{emoji} {String(count)}</span>
+                                                ))}
                                             </div>
-                                            {msg.reactions && typeof msg.reactions === 'object' && Object.keys(msg.reactions).length > 0 && (
-                                                <div className="flex items-center gap-1">
-                                                    {Object.entries(msg.reactions).map(([emoji, count]) => (
-                                                        <span key={emoji} className="text-[10px] bg-white/5 border border-white/10 rounded-full px-1.5 py-0.5">{emoji} {String(count)}</span>
+                                        )}
+
+                                        {/* Reaction Picker (shown when React clicked from menu) */}
+                                        {showReactionPickerFor === msg.id && (
+                                            <>
+                                                <div className="fixed inset-0 z-[60]" onClick={() => setShowReactionPickerFor(null)} />
+                                                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 z-[61] flex items-center gap-1 bg-campus-card/95 backdrop-blur-lg border border-campus-border/60 rounded-[12px] py-2 px-3 shadow-elevation-3 animate-scale-in">
+                                                    {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                                                        <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); setShowReactionPickerFor(null); }} className="w-8 h-8 flex items-center justify-center hover:bg-white/[0.15] rounded-[8px] text-lg transition-all hover:scale-125">{emoji}</button>
                                                     ))}
                                                 </div>
-                                            )}
-                                        </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -496,125 +511,138 @@ export default function ChatPage() {
                 <div ref={messagesEndRef} className="h-2" />
             </div>
 
-            {/* Input Wrapper — Instagram/Messenger style (floating) */}
-            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shrink-0 bg-transparent relative z-20">
+            {/* Input Wrapper — Simplified minimal design */}
+            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shrink-0 bg-transparent relative z-20 animate-fade-in">
+                {/* Reply Preview - Subtle left border */}
                 {replyTo && (
-                    <div className="mx-auto max-w-4xl bg-campus-dark border border-white/[0.1] border-b-0 rounded-t-2xl px-4 py-2 flex items-center justify-between animate-slide-up">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <Reply size={14} className="text-brand-400" />
-                            <p className="text-xs text-campus-muted truncate">Replying to <span className="text-brand-400 font-bold">{(replyTo.sender as any)?.display_name}</span></p>
+                    <div className="mx-auto max-w-4xl bg-campus-card/50 border border-l-4 border-l-brand-500 border-r-campus-border border-t-campus-border border-b-campus-border rounded-t-[14px] px-4 py-3 flex items-center justify-between animate-slide-up mb-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <Reply size={16} className="text-brand-400 shrink-0" />
+                            <p className="text-[13px] text-campus-muted truncate">Replying to <span className="text-brand-300 font-semibold">{(replyTo.sender as any)?.display_name}</span></p>
                         </div>
-                        <button onClick={() => setReplyTo(null)} className="text-campus-muted hover:text-white transition-colors">✕</button>
+                        <button onClick={() => setReplyTo(null)} className="text-campus-muted hover:text-white transition-all ml-4 shrink-0">
+                            <X size={18} />
+                        </button>
                     </div>
                 )}
-                <div className={`mx-auto max-w-4xl flex items-center gap-2 bg-campus-dark/95 backdrop-blur-2xl border border-white/[0.08] p-1.5 ${replyTo ? 'rounded-b-2xl' : 'rounded-2xl'} shadow-lg group focus-within:border-brand-500/50 transition-all`}>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        onChange={handleFileUpload}
-                        accept="image/*,video/*,.pdf,.doc,.docx"
-                    />
-                    <div className="relative">
+
+                {/* Message Request - show when direct chat and not friends */}
+                {otherUserId && friendship !== 'friends' && (
+                    <div className="mx-auto max-w-4xl mb-4 p-4 rounded-[14px] bg-amber-500/10 border border-amber-500/30 flex flex-col items-center gap-3 text-center">
+                        <p className="text-sm text-amber-200/90">You&apos;re not connected yet. Send a friend request to message directly.</p>
+                        <button
+                            onClick={async () => { if (user?.id && friendship === 'none') { await sendFriendRequest(user.id, otherUserId); setFriendship('pending_sent'); } }}
+                            disabled={friendship !== 'none'}
+                            className="px-6 py-2.5 rounded-xl bg-amber-500/30 hover:bg-amber-500/50 text-amber-200 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {friendship === 'pending_sent' ? 'Request Sent' : 'Send Message Request'}
+                        </button>
+                    </div>
+                )}
+                
+                {/* Input Container - disabled when not friends in direct chat */}
+                {!(otherUserId && friendship !== 'friends') && (
+                <div className={`mx-auto max-w-4xl flex items-center gap-3 bg-campus-card/50 backdrop-blur-sm border border-campus-border/50 p-3 rounded-[14px] shadow-elevation-1 group focus-within:border-brand-500/60 focus-within:bg-campus-card/70 transition-all duration-300 ${replyTo ? 'rounded-t-none border-t-0' : ''}`}>
+                    {/* Attachment Button */}
+                    <div className="relative shrink-0">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            className="hidden"
+                            onChange={handleFileUpload}
+                            accept="image/*,video/*,.pdf,.doc,.docx"
+                        />
                         <button
                             onClick={() => setOpenAttachmentMenu(!openAttachmentMenu)}
-                            className={`p-2.5 hover:bg-white/5 rounded-xl transition-colors ${uploading ? 'animate-pulse text-brand-400' : 'text-campus-muted hover:text-white'} ${openAttachmentMenu ? 'bg-white/10 text-brand-400' : ''}`}
+                            className={`p-2.5 rounded-[10px] transition-all duration-300 ${uploading ? 'animate-pulse text-brand-500' : 'text-campus-muted hover:text-white hover:bg-white/[0.08]'} ${openAttachmentMenu ? 'bg-white/10 text-brand-400' : ''}`}
                             disabled={uploading}
+                            title="Attach file"
                         >
-                            <Paperclip size={20} />
+                            <Paperclip size={20} strokeWidth={1.5} />
                         </button>
 
+                        {/* Attachment Menu - 12 options */}
                         {openAttachmentMenu && (
-                            <div className="absolute bottom-full left-0 mb-4 w-64 bg-campus-dark border border-white/10 rounded-2xl shadow-2xl p-4 grid grid-cols-3 gap-y-6 gap-x-2 z-50 animate-slide-up">
-                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.pdf,.doc,.docx,.txt'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform"><FileText size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Document</span>
+                            <div className="absolute bottom-full left-0 mb-3 w-80 bg-campus-card border border-campus-border/50 rounded-[14px] shadow-elevation-3 p-4 grid grid-cols-4 gap-3 z-50 animate-slide-up max-h-64 overflow-y-auto">
+                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.pdf,.doc,.docx,.txt'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Document">
+                                    <div className="w-11 h-11 rounded-[10px] bg-brand-500/15 text-brand-400 flex items-center justify-center group-hover:scale-110 transition-all"><FileText size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Document</span>
                                 </button>
-                                <button onClick={() => { fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.setAttribute('accept', 'image/*,video/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center group-hover:scale-110 transition-transform"><ImageIcon size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Gallery</span>
+                                <button onClick={() => { fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.setAttribute('accept', 'image/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Photo">
+                                    <div className="w-11 h-11 rounded-[10px] bg-pink-500/15 text-pink-400 flex items-center justify-center group-hover:scale-110 transition-all"><ImageIcon size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Photo</span>
                                 </button>
-                                <button onClick={() => { fileInputRef.current?.setAttribute('capture', 'environment'); fileInputRef.current?.setAttribute('accept', 'image/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center group-hover:scale-110 transition-transform"><CameraIcon size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Camera</span>
+                                <button onClick={() => { fileInputRef.current?.setAttribute('capture', 'environment'); fileInputRef.current?.setAttribute('accept', 'video/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Video">
+                                    <div className="w-11 h-11 rounded-[10px] bg-red-500/15 text-red-400 flex items-center justify-center group-hover:scale-110 transition-all"><CameraIcon size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Video</span>
                                 </button>
-                                <button onClick={() => { alert('Poll feature coming soon in Phase 3'); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform"><BarChart2 size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Poll</span>
+                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', 'audio/*'); fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Audio">
+                                    <div className="w-11 h-11 rounded-[10px] bg-emerald-500/15 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-all"><Music size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Audio</span>
                                 </button>
-                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', 'audio/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform"><Music size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Audio</span>
+                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', 'image/gif'); fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="GIF">
+                                    <div className="w-11 h-11 rounded-[10px] bg-yellow-500/15 text-yellow-400 flex items-center justify-center group-hover:scale-110 transition-all"><Square size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">GIF</span>
                                 </button>
-                                <button onClick={() => { setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform"><User size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Contact</span>
+                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', 'image/*'); fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Sticker">
+                                    <div className="w-11 h-11 rounded-[10px] bg-purple-500/15 text-purple-400 flex items-center justify-center group-hover:scale-110 transition-all"><Smile size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Sticker</span>
                                 </button>
-                                <button onClick={() => { setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-2 group">
-                                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform"><Calendar size={20} /></div>
-                                    <span className="text-[10px] text-campus-muted group-hover:text-white">Event</span>
+                                <button onClick={() => { setOpenAttachmentMenu(false); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition(p => sendMessage(`📍 Location: ${p.coords.latitude.toFixed(4)}, ${p.coords.longitude.toFixed(4)}`, 'text'), () => sendMessage('📍 Location unavailable', 'text')); } else { sendMessage('📍 Location not supported', 'text'); } }} className="flex flex-col items-center gap-1.5 group p-2" title="Location">
+                                    <div className="w-11 h-11 rounded-[10px] bg-blue-500/15 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-all"><MapPin size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Location</span>
+                                </button>
+                                <button onClick={() => { setOpenAttachmentMenu(false); sendMessage('📊 Poll: What do you think? (Yes / No)', 'text'); }} className="flex flex-col items-center gap-1.5 group p-2" title="Poll">
+                                    <div className="w-11 h-11 rounded-[10px] bg-amber-500/15 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-all"><BarChart3 size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Poll</span>
+                                </button>
+                                <button onClick={() => { fileInputRef.current?.setAttribute('accept', 'audio/*'); fileInputRef.current?.setAttribute('capture', 'user'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Voice note">
+                                    <div className="w-11 h-11 rounded-[10px] bg-teal-500/15 text-teal-400 flex items-center justify-center group-hover:scale-110 transition-all"><Mic size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Voice</span>
+                                </button>
+                                <button onClick={() => { fileInputRef.current?.setAttribute('capture', 'user'); fileInputRef.current?.setAttribute('accept', 'video/*'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Record video">
+                                    <div className="w-11 h-11 rounded-[10px] bg-orange-500/15 text-orange-400 flex items-center justify-center group-hover:scale-110 transition-all"><CameraIcon size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Record</span>
+                                </button>
+                                <button onClick={() => { setOpenAttachmentMenu(false); sendMessage('👤 Shared contact', 'text'); }} className="flex flex-col items-center gap-1.5 group p-2" title="Contact">
+                                    <div className="w-11 h-11 rounded-[10px] bg-indigo-500/15 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-all"><UserPlus size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Contact</span>
+                                </button>
+                                <button onClick={() => { fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.removeAttribute('accept'); fileInputRef.current?.click(); setOpenAttachmentMenu(false); }} className="flex flex-col items-center gap-1.5 group p-2" title="Files">
+                                    <div className="w-11 h-11 rounded-[10px] bg-slate-500/15 text-slate-400 flex items-center justify-center group-hover:scale-110 transition-all"><FileArchive size={18} /></div>
+                                    <span className="text-[10px] font-medium text-campus-muted text-center leading-tight">Files</span>
                                 </button>
                             </div>
                         )}
                     </div>
-                    {isRecording ? (
-                        <div className="flex-1 flex items-center justify-between px-4 animate-fade-in">
-                            <div className="flex items-center gap-3">
-                                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
-                                <span className="font-mono font-medium text-red-500">{formattedTime}</span>
-                            </div>
-                            <span className="text-sm font-medium text-campus-muted animate-pulse">Recording...</span>
-                        </div>
-                    ) : (
-                        <div className="flex-1 relative">
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                placeholder={uploading ? `Uploading... ${progress}%` : (editingMessage ? "Edit message..." : "Type a message...")}
-                                value={newMessage}
-                                onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm py-2 px-1 placeholder:text-campus-muted/50"
-                                disabled={uploading}
-                            />
-                        </div>
-                    )}
 
-                    {newMessage.trim() ? (
-                        <button onClick={handleSend} className="p-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl transition-all active:scale-90 shadow-glow">
-                            <Send size={18} />
-                        </button>
-                    ) : isRecording ? (
-                        <div className="flex items-center gap-2">
-                            <button onClick={cancelRecording} className="p-2.5 hover:bg-red-500/10 rounded-xl text-red-400 transition-colors">
-                                <Trash2 size={20} />
-                            </button>
-                            <button onClick={handleVoiceNoteStop} className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all active:scale-90 shadow-glow">
-                                <Send size={18} />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center mr-1">
-                            <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`p-2.5 rounded-xl transition-colors ${showEmojiPicker ? 'bg-white/10 text-brand-400' : 'text-campus-muted hover:bg-white/5 hover:text-white'}`}>
-                                <Smile size={20} />
-                            </button>
-                            <button onClick={startRecording} className="p-2.5 hover:bg-white/5 rounded-xl text-campus-muted hover:text-white transition-colors relative group">
-                                <Mic size={20} className="group-hover:text-red-400 transition-colors" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Emoji Picker Anchor */}
-                {showEmojiPicker && (
-                    <div className="absolute bottom-20 right-4 z-[200] animate-slide-up shadow-2xl border border-white/10 rounded-xl overflow-hidden">
-                        <EmojiPicker
-                            theme={Theme.DARK}
-                            onEmojiClick={(emojiData) => setNewMessage(prev => prev + emojiData.emoji)}
-                            width={320}
-                            height={400}
+                    {/* Text Input - Full width */}
+                    <div className="flex-1 relative px-1">
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder={uploading ? `Uploading... ${progress}%` : (editingMessage ? "Edit..." : "Message...")}
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                            className="w-full bg-transparent border-none focus:ring-0 text-[16px] py-2 px-2 placeholder:text-campus-muted/50 font-normal"
+                            disabled={uploading}
                         />
                     </div>
+
+                    {/* Send Button */}
+                    <div className="shrink-0">
+                        {newMessage.trim() || uploading ? (
+                            <button onClick={handleSend} disabled={uploading} className="p-2.5 bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-[10px] transition-all duration-300 active:scale-95 shadow-elevation-2 hover:shadow-elevation-3 animate-fade-in" title="Send message">
+                                <Send size={20} strokeWidth={2} className={uploading ? 'animate-pulse' : ''} />
+                            </button>
+                        ) : (
+                            <button disabled className="p-2.5 bg-campus-border/30 text-campus-muted/50 rounded-[10px] cursor-not-allowed">
+                                <Send size={20} strokeWidth={2} />
+                            </button>
+                        )}
+                    </div>
+                </div>
                 )}
             </div>
 
