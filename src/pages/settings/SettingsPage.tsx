@@ -1,34 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@insforge/react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
     User,
     Shield,
+    Lock,
+    MessageSquare,
+    Rss,
+    BookOpen,
+    Briefcase,
+    FileUser,
     Bell,
     Palette,
+    Accessibility,
     Database,
-    LogOut,
+    Zap,
+    ShieldAlert,
+    FileText,
+    Search,
     ChevronRight,
-    Key,
-    Moon,
-    Code2,
+    LogOut,
+    ExternalLink,
+    ChevronLeft,
+    RotateCcw
 } from 'lucide-react';
+import { SettingItemRow } from '../../components/settings/SettingItemRow';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { deleteCookie } from '../../utils/cookie';
-import { insforge } from '../../lib/insforge';
-import { useAppStore } from '../../stores/appStore';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const iconMap: Record<string, React.ComponentType<any>> = {
+    User, Shield, Lock, MessageSquare, Rss, BookOpen, Briefcase, FileUser, Bell, Palette, Accessibility, Database, Zap, ShieldAlert, FileText
+};
 
 export default function SettingsPage() {
     const { user } = useUser();
     const { signOut } = useAuth();
-    const { showToast } = useAppStore();
+    const { categories, searchQuery, setSearchQuery, init, isInitialized } = useSettingsStore();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'account' | 'privacy' | 'notifications' | 'aesthetics' | 'data'>('account');
-    const [isSaving, setIsSaving] = useState(false);
-    const [showKey, setShowKey] = useState(false);
+    const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+    const [syncing, setSyncing] = useState(false);
 
-    // Profile State
-    const [displayName, setDisplayName] = useState(user?.profile?.display_name || '');
-    const [bio, setBio] = useState(user?.profile?.bio || '');
+    useEffect(() => {
+        if (user?.id) init(user.id);
+    }, [user?.id, init]);
+
+    // Simulate mesh sync when items are updated (or on load)
+    useEffect(() => {
+        if (isInitialized) {
+            setSyncing(true);
+            const timer = setTimeout(() => setSyncing(false), 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [isInitialized]);
 
     const handleLogout = async () => {
         if (window.confirm('Are you sure you want to logout?')) {
@@ -40,293 +64,244 @@ export default function SettingsPage() {
         }
     };
 
-    const handleUpdateProfile = async () => {
-        if (!user?.id) return;
-        setIsSaving(true);
-        try {
-            const { data, error } = await insforge.database.from('profiles').update({
-                display_name: displayName,
-                bio: bio,
-                updated_at: new Date().toISOString()
-            }).eq('id', user.id).select().single();
-            if (error) throw error;
-            if (data) {
-                showToast('Profile updated successfully!', 'success');
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('Failed to update profile. Please try again.', 'error');
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    if (!isInitialized) {
+        return (
+            <div className="flex-1 h-full bg-[var(--background)] flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
-    const wipeData = () => {
-        if (window.confirm('This will wipe all local offline cache. Continue?')) {
-            localStorage.clear();
-            indexedDB.databases?.().then(dbs => dbs.forEach(db => db.name && indexedDB.deleteDatabase(db.name)));
-            showToast('Local cache wiped successfully.', 'success');
-        }
-    };
+    const filteredCategories = categories.filter(cat =>
+        cat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        cat.items.some(item =>
+            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.description.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    );
 
-    const tabs = [
-        { id: 'account', label: 'Account', icon: User },
-        { id: 'privacy', label: 'Privacy & Security', icon: Shield },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
-        { id: 'aesthetics', label: 'Aesthetics', icon: Palette },
-        { id: 'data', label: 'Local Data', icon: Database },
-    ];
-    const devTab = { id: 'developer', label: 'Developer', path: '/app/settings/developer' };
+    const currentCategory = categories.find(c => c.id === activeCategoryId);
 
     return (
-        <div className="flex-1 h-full bg-campus-darker flex overflow-hidden">
-            {/* Sidebar */}
-            <div className="w-80 border-r border-white/5 bg-campus-dark/50 flex flex-col">
-                <div className="p-8">
-                    <h1 className="text-2xl font-black text-white mb-2">Settings</h1>
-                    <p className="text-xs text-campus-muted">Manage your Campusly experience</p>
-                </div>
-
-                <nav className="flex-1 px-4 space-y-1">
-                    {tabs.map(tab => (
+        <div className="flex-1 h-full bg-[var(--background)] flex flex-col overflow-hidden relative">
+            {/* iOS Status Bar Placeholder / Header Area */}
+            <div className="pt-12 pb-4 px-6 sticky top-0 bg-[var(--background)]/80 backdrop-blur-xl z-20 border-b border-[var(--border)]">
+                <div className="flex items-center justify-between mb-4">
+                    {activeCategoryId ? (
                         <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${activeTab === tab.id ? 'bg-brand-500 text-white shadow-glow' : 'text-campus-muted hover:bg-white/5'}`}
+                            onClick={() => setActiveCategoryId(null)}
+                            className="flex items-center gap-1 text-[var(--brand)] font-semibold active:opacity-50 transition-opacity"
                         >
-                            <div className="flex items-center gap-3">
-                                <tab.icon size={20} />
-                                <span className="font-bold text-sm">{tab.label}</span>
-                            </div>
-                            <ChevronRight size={16} className={activeTab === tab.id ? 'opacity-100' : 'opacity-30'} />
+                            <ChevronLeft size={24} />
+                            <span>Settings</span>
                         </button>
-                    ))}
-                </nav>
-
-                <div className="p-6 space-y-2">
-                    <Link to={devTab.path} className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl text-campus-muted hover:bg-white/5 hover:text-brand-400 transition-colors font-bold text-sm">
-                        <div className="flex items-center gap-3">
-                            <Code2 size={20} />
-                            <span>Developer</span>
-                        </div>
-                        <ChevronRight size={16} />
-                    </Link>
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 p-4 rounded-2xl text-red-400 hover:bg-red-400/10 transition-colors font-bold text-sm"
-                    >
-                        <LogOut size={20} />
-                        Logout Session
-                    </button>
+                    ) : (
+                        <h1 className="text-[34px] font-bold text-[var(--foreground)] tracking-tight">Settings</h1>
+                    )}
+                    <div className="flex items-center gap-3">
+                        <AnimatePresence>
+                            {syncing && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    className="flex items-center gap-2 px-3 py-1 bg-[var(--brand)]/10 border border-[var(--brand)]/20 rounded-full"
+                                >
+                                    <RotateCcw size={12} className="text-[var(--brand)] animate-spin" />
+                                    <span className="text-[10px] font-bold text-[var(--brand)] uppercase tracking-widest">Mesh Syncing...</span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                        {!activeCategoryId && (
+                            <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 overflow-hidden shadow-inner flex items-center justify-center">
+                                {user?.profile?.avatar_url ? (
+                                    <img src={user.profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                    <User size={18} className="text-campus-muted" />
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {!activeCategoryId && (
+                    <div className="relative group/search">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] group-focus-within/search:text-[var(--brand)] transition-colors" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-[var(--border)]/60 border-none rounded-[10px] pl-10 pr-4 py-2.5 text-[17px] focus:ring-2 focus:ring-[var(--brand)]/50 outline-none transition-all placeholder:text-[var(--foreground-muted)] text-[var(--foreground)]"
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto bg-campus-darker relative">
-                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-brand-600/5 blur-[100px] pointer-events-none" />
-
-                <div className="max-w-3xl mx-auto p-12 relative z-10">
-                    {activeTab === 'account' && (
-                        <div className="space-y-10 animate-fade-in">
-                            <section>
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <User className="text-brand-400" size={24} /> Profile Settings
-                                </h2>
-                                <div className="flex items-center gap-8 mb-8 p-6 bg-white/5 border border-white/10 rounded-3xl">
-                                    <div className="w-24 h-24 rounded-3xl bg-brand-500 overflow-hidden shrink-0">
-                                        {user?.profile?.avatar_url ? (
-                                            <img src={String(user.profile.avatar_url)} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-white">
-                                                {String(user?.profile?.display_name || 'U').charAt(0)}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 space-y-2">
-                                        <h3 className="font-bold text-lg">{String(user?.profile?.display_name || 'Student')}</h3>
-                                        <p className="text-xs text-campus-muted">{String(user?.email || '')}</p>
-                                        <div className="flex gap-2">
-                                            <span className="px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 text-[10px] font-bold uppercase tracking-wider">Verified Student</span>
-                                            <span className="px-3 py-1 rounded-full bg-white/5 text-campus-muted text-[10px] font-bold uppercase tracking-wider">{String(user?.profile?.branch || 'General')}</span>
-                                        </div>
-                                    </div>
+            <div className="flex-1 overflow-y-auto pt-4 pb-20 custom-scrollbar px-4 space-y-8">
+                <AnimatePresence mode="wait">
+                    {!activeCategoryId ? (
+                        <motion.div
+                            key="category-list"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-8"
+                        >
+                            {/* Profile Preview Row - iOS style */}
+                            <button
+                                onClick={() => setActiveCategoryId('account')}
+                                className="w-full h-[88px] flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl hover:bg-white/[0.06] transition-all group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex-shrink-0 items-center justify-center flex text-2xl font-black text-white shadow-glow">
+                                    {String((user?.profile as any)?.display_name || 'U').charAt(0)}
                                 </div>
+                                <div className="flex-1 text-left">
+                                    <h2 className="text-[20px] font-semibold text-white tracking-tight">{(user?.profile as any)?.display_name || 'Campus Student'}</h2>
+                                    <p className="text-[13px] text-gray-500 truncate">Account, Cloud Mesh, Media</p>
+                                </div>
+                                <ChevronRight size={20} className="text-gray-600" />
+                            </button>
 
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-campus-muted ml-1 uppercase tracking-widest">Display Name</label>
-                                        <input
-                                            type="text"
-                                            value={String(displayName)}
-                                            onChange={(e) => setDisplayName(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:border-brand-500 outline-none transition-all"
-                                            placeholder="Your full name"
-                                        />
+                            {/* Settings Groups */}
+                            <div className="space-y-[1px] bg-white/[0.03] rounded-2xl overflow-hidden border border-white/5">
+                                {filteredCategories.map(cat => {
+                                    if (cat.id === 'account') return null; // Already shown above
+                                    const Icon = iconMap[cat.icon] || Shield;
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            onClick={() => setActiveCategoryId(cat.id)}
+                                            className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-white/5 active:bg-white/[0.08] transition-all group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm ${getIconBg(cat.id)}`}>
+                                                    <Icon size={18} />
+                                                </div>
+                                                <span className="text-[17px] text-white/95 font-medium">{cat.title}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {cat.id === 'performance' && <span className="text-[14px] text-gray-500 font-medium">Hyper</span>}
+                                                <ChevronRight size={18} className="text-gray-600/40" />
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="space-y-[1px] bg-white/[0.03] rounded-2xl overflow-hidden border border-white/5">
+                                <button
+                                    onClick={() => navigate('/app/settings/developer')}
+                                    className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-white/5 active:bg-white/[0.08] transition-all"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-gray-600 flex items-center justify-center text-white">
+                                            <Zap size={18} />
+                                        </div>
+                                        <span className="text-[17px] text-white/95 font-medium">Developer Mode</span>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-campus-muted ml-1 uppercase tracking-widest">Bio / Status</label>
-                                        <textarea
-                                            value={String(bio)}
-                                            onChange={(e) => setBio(e.target.value)}
-                                            rows={3}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:border-brand-500 outline-none transition-all resize-none"
-                                            placeholder="Write something about yourself..."
-                                        />
-                                    </div>
+                                    <ChevronRight size={18} className="text-gray-600/40" />
+                                </button>
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full flex items-center justify-center p-4 bg-transparent hover:bg-white/5 active:bg-white/[0.08] transition-all text-red-500 font-medium text-[17px]"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+
+                            <div className="text-center pb-12">
+                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Campusly v4.0.2-mesh</p>
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="category-content"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="space-y-10"
+                        >
+                            <div className="pt-2 px-2">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-[32px] font-bold text-white mb-2 leading-tight">{currentCategory?.title}</h2>
                                     <button
-                                        onClick={handleUpdateProfile}
-                                        disabled={isSaving}
-                                        className="btn-primary px-8 py-3 rounded-2xl font-bold disabled:opacity-50"
+                                        onClick={() => setActiveCategoryId(null)}
+                                        className="text-[15px] font-semibold text-brand-500 active:opacity-50"
                                     >
-                                        {isSaving ? 'Saving...' : 'Save Changes'}
+                                        Close Dialog
                                     </button>
                                 </div>
-                            </section>
-                        </div>
-                    )}
+                                <p className="text-[15px] text-gray-400 font-medium">
+                                    {getCategoryDescription(currentCategory?.id)}
+                                </p>
+                            </div>
 
-                    {activeTab === 'privacy' && (
-                        <div className="space-y-10 animate-fade-in">
-                            <section>
-                                <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-                                    <Shield className="text-brand-400" size={24} /> Privacy & Security
-                                </h2>
-                                <p className="text-sm text-campus-muted mb-8">Control who sees your activity and manage security.</p>
-                                <div className="space-y-4">
-                                    {['Last seen', 'Profile visibility', 'Read receipts', '2FA', 'Active sessions'].map((label, i) => (
-                                        <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                            <span className="font-medium text-sm">{label}</span>
-                                            <button onClick={() => showToast(`${label} toggled`, 'info')} className="w-11 h-6 rounded-full bg-brand-500/30 p-0.5 cursor-pointer border border-brand-500/40"><div className="w-4 h-4 bg-white rounded-full ml-3.5 transition-transform" /></button>
-                                        </div>
-                                    ))}
-                                    <div className="p-5 bg-brand-500/5 border border-brand-500/20 rounded-2xl space-y-4">
-                                        <h3 className="font-bold flex items-center gap-2"><Key size={18} className="text-brand-400" /> E2E Encryption</h3>
-                                        <p className="text-xs text-campus-muted">Your chats use end-to-end encryption. Only you and the recipient hold the keys.</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            <button onClick={() => setShowKey(!showKey)} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">{showKey ? 'Hide Key' : 'Reveal Key'}</button>
-                                            <button onClick={() => showToast('Key exported securely', 'success')} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">Export Key</button>
-                                            <button onClick={() => showToast('New key pair generated', 'success')} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">Rotate Keys</button>
-                                        </div>
-                                        {showKey && <div className="p-4 bg-black/40 rounded-xl font-mono text-[10px] break-all border border-white/5">{btoa(user?.id || '').slice(0, 32)}...</div>}
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                        <span className="font-medium text-sm">Blocked users</span>
-                                        <button onClick={() => showToast('Blocked users list', 'info')} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold">Manage</button>
-                                    </div>
-                                    <button onClick={() => showToast('Password reset email sent', 'info')} className="w-full py-3 rounded-2xl border border-white/10 hover:bg-white/5 text-sm font-bold">Change password</button>
-                                </div>
-                            </section>
-                        </div>
-                    )}
-
-                    {activeTab === 'notifications' && (
-                        <div className="space-y-10 animate-fade-in">
-                            <section>
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <Bell className="text-brand-400" size={24} /> Notifications
-                                </h2>
-                                <div className="space-y-4">
-                                    {[
-                                        { label: 'Messages', desc: 'Direct and group alerts' },
-                                        { label: 'Groups', desc: 'Group activity & mentions' },
-                                        { label: 'Campus Feed', desc: 'Replies and mentions' },
-                                        { label: 'Placement', desc: 'Jobs & interview tips' },
-                                        { label: 'Exam reminders', desc: 'Assignments & exams' },
-                                        { label: 'Quiet hours', desc: 'Mute during study' },
-                                    ].map((item, idx) => (
-                                        <div key={idx} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                            <div>
-                                                <h3 className="font-bold text-sm">{item.label}</h3>
-                                                <p className="text-xs text-campus-muted mt-1">{item.desc}</p>
-                                            </div>
-                                            <button onClick={() => showToast(`${item.label} toggled`, 'info')} className="w-11 h-6 rounded-full bg-brand-500/30 p-0.5 cursor-pointer border border-brand-500/40"><div className="w-4 h-4 bg-white rounded-full ml-3.5" /></button>
-                                        </div>
+                            <div className="space-y-0.5">
+                                <div className="bg-white/[0.03] rounded-3xl overflow-hidden border border-white/5">
+                                    {currentCategory?.items.map((item, idx) => (
+                                        <SettingItemRow
+                                            key={item.id}
+                                            categoryId={activeCategoryId!}
+                                            item={item}
+                                            isLast={idx === (currentCategory!.items.length - 1)}
+                                        />
                                     ))}
                                 </div>
-                            </section>
-                        </div>
-                    )}
+                            </div>
 
-                    {activeTab === 'aesthetics' && (
-                        <div className="space-y-10 animate-fade-in">
-                            <section>
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <Palette className="text-brand-400" size={24} /> Aesthetics
-                                </h2>
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-white/5 border-2 border-brand-500/50 rounded-2xl flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Moon size={20} className="text-brand-400" />
-                                            <div><h3 className="font-bold text-sm">Dark mode</h3><p className="text-xs text-campus-muted">Currently active</p></div>
+                            {activeCategoryId === 'account' && (
+                                <div className="mt-12 space-y-4 px-2">
+                                    <p className="text-[13px] text-gray-500 px-4 uppercase tracking-[0.2em] font-black">Digital Signature</p>
+                                    <div className="p-8 rounded-[40px] bg-white/[0.03] border border-white/5 text-center shadow-xl backdrop-blur-sm">
+                                        <div className="w-24 h-24 rounded-full mx-auto mb-6 bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-4xl font-black text-white shadow-glow-lg border-4 border-white/10">
+                                            {String((user?.profile as any)?.display_name || 'U').charAt(0)}
                                         </div>
-                                        <span className="text-[10px] bg-brand-500/20 text-brand-400 px-2 py-1 rounded-full font-bold">ON</span>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <h3 className="font-bold text-sm mb-2">Accent color</h3>
-                                        <div className="flex gap-2">
-                                            {['#0ea5e9','#8b5cf6','#10b981','#f59e0b'].map(c => <button key={c} onClick={() => showToast(`Accent: ${c}`,'info')} className="w-8 h-8 rounded-full ring-2 ring-white/20 hover:scale-110 transition-transform" style={{background:c}} />)}
-                                        </div>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <h3 className="font-bold text-sm mb-2">Glassmorphism & Darkness</h3>
-                                        <p className="text-xs text-campus-muted mb-3">Blur and transparency level for UI panels.</p>
-                                        <div className="flex items-center gap-3">
-                                            <input type="range" min="0" max="100" defaultValue="85" className="flex-1 accent-brand-500" onChange={() => showToast('Glass level updated','success')} />
-                                            <span className="text-xs font-bold text-brand-400">85%</span>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <div className="flex items-center justify-between mb-2"><h3 className="font-bold text-sm">Font size</h3><span className="text-brand-400 text-xs">16px</span></div>
-                                        <input type="range" min="12" max="20" defaultValue="16" className="w-full accent-brand-500" />
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                        <span className="font-medium text-sm">Compact mode</span>
-                                        <div className="w-11 h-6 bg-white/10 rounded-full p-0.5 cursor-pointer"><div className="w-4 h-4 bg-campus-muted rounded-full" /></div>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <div className="flex items-center justify-between mb-2"><h3 className="font-bold text-sm">Animation intensity</h3><span className="text-campus-muted text-xs">Normal</span></div>
-                                        <input type="range" min="0" max="2" defaultValue="1" className="w-full accent-brand-500" />
+                                        <h4 className="text-2xl font-black mb-1 text-white tracking-tight">{(user?.profile as any)?.display_name || 'Campus Student'}</h4>
+                                        <p className="text-[14px] text-campus-muted mb-8 font-medium">{user?.email}</p>
+                                        <button className="w-full py-4 bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-glow hover:shadow-glow-lg">Update Profile Identity</button>
                                     </div>
                                 </div>
-                            </section>
-                        </div>
+                            )}
+                        </motion.div>
                     )}
-
-                    {activeTab === 'data' && (
-                        <div className="space-y-10 animate-fade-in">
-                            <section>
-                                <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-                                    <Database className="text-brand-400" size={24} /> Local Data
-                                </h2>
-                                <p className="text-sm text-campus-muted mb-8">Cache, offline sync, and data export.</p>
-                                <div className="space-y-4">
-                                    <div className="p-6 rounded-2xl bg-gradient-to-br from-brand-600/10 to-purple-600/10 border border-brand-500/20">
-                                        <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest mb-1">Cache Size</p>
-                                        <h4 className="text-2xl font-black text-white">12.4 MB</h4>
-                                        <p className="text-xs text-campus-muted mt-1">Database: 2.1MB | Media: 10.3MB</p>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                        <div><h3 className="font-bold text-sm">Wipe offline cache</h3><p className="text-xs text-campus-muted">Clears local DB & media</p></div>
-                                        <button onClick={wipeData} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">Clear</button>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                        <div><h3 className="font-bold text-sm">Offline sync status</h3><p className="text-xs text-emerald-400">Synced</p></div>
-                                    </div>
-                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-                                        <div><h3 className="font-bold text-sm">Export data</h3><p className="text-xs text-campus-muted">Download your data</p></div>
-                                        <button className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold">Export</button>
-                                    </div>
-                                    <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl flex items-center justify-between">
-                                        <div><h3 className="font-bold text-sm text-red-400">Reset app data</h3><p className="text-xs text-campus-muted">Wipe all local data</p></div>
-                                        <button onClick={wipeData} className="px-4 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs font-bold">Reset</button>
-                                    </div>
-                                    <button onClick={() => { if (window.confirm('Delete account permanently? This cannot be undone.')) showToast('Account deletion requested. Contact support.', 'info'); }} className="w-full py-3 rounded-2xl border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold text-sm">Delete account</button>
-                                </div>
-                            </section>
-                        </div>
-                    )}
-                </div>
+                </AnimatePresence>
             </div>
         </div>
     );
+}
+
+function getCategoryDescription(id: string | undefined) {
+    switch (id) {
+        case 'privacy':
+        case 'security':
+            return 'Managing your privacy & security preferences. Syncing with local mesh...';
+        case 'notifications':
+            return 'Managing your push notifications preferences. Syncing with local mesh...';
+        case 'appearance':
+            return 'Managing your aesthetics preferences. Syncing with local mesh...';
+        default:
+            return 'Manage your preferences and sync them across your devices via local mesh.';
+    }
+}
+
+function getIconBg(id: string) {
+    const map: Record<string, string> = {
+        account: 'bg-blue-500',
+        privacy: 'bg-emerald-500',
+        security: 'bg-amber-500',
+        chat: 'bg-indigo-500',
+        feed: 'bg-orange-500',
+        study: 'bg-purple-500',
+        placement: 'bg-rose-500',
+        resume: 'bg-sky-500',
+        notifications: 'bg-red-500',
+        appearance: 'bg-pink-500',
+        accessibility: 'bg-blue-600',
+        data: 'bg-gray-600',
+        performance: 'bg-cyan-500',
+        moderation: 'bg-indigo-700',
+        legal: 'bg-neutral-500'
+    };
+    return map[id] || 'bg-brand-500';
 }

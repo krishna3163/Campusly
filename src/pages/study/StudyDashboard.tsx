@@ -8,8 +8,21 @@ import {
     CheckCircle2,
     X,
     Search,
+    Pencil,
+    Trash2,
+    Clock,
+    BookOpen,
+    Trophy,
+    Calendar,
+    ChevronRight,
+    Play,
+    Pause,
+    RotateCcw
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
+import LeetCodeWidget from '../../components/study/LeetCodeWidget';
+import LeetCodeComparison from '../../components/study/LeetCodeComparison';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function StudyDashboard() {
     const { user } = useUser();
@@ -18,7 +31,7 @@ export default function StudyDashboard() {
     const [exams, setExams] = useState<Exam[]>([]);
     const [notes, setNotes] = useState<Note[]>([]);
     const [myGroups, setMyGroups] = useState<Conversation[]>([]);
-    const [showAddModal, setShowAddModal] = useState<'assignment' | 'exam' | null>(null);
+    const [showAddModal, setShowAddModal] = useState<{ type: 'assignment' | 'exam', item?: any } | null>(null);
     const [searchNotes, setSearchNotes] = useState('');
 
     useEffect(() => {
@@ -28,11 +41,9 @@ export default function StudyDashboard() {
     const loadData = async () => {
         if (!user?.id) return;
         try {
-            // Get joined groups for Add Task/Exam scope
             const { data: mData } = await insforge.database.from('conversation_members').select('conversation_id').eq('user_id', user.id);
             const groupIds = mData?.map(m => m.conversation_id) || [];
 
-            // Fetch by user_id only (notes/assignments/exams may not have conversation_id in schema)
             const [assignRes, examRes, noteRes, groupRes] = await Promise.all([
                 insforge.database.from('assignments').select('*').eq('user_id', user.id),
                 insforge.database.from('exams').select('*').eq('user_id', user.id),
@@ -55,9 +66,9 @@ export default function StudyDashboard() {
         const diff = new Date(dateStr).getTime() - Date.now();
         const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
         if (days < 0) return 'Passed';
-        if (days === 0) return 'Today!';
+        if (days === 0) return 'Today';
         if (days === 1) return 'Tomorrow';
-        return `${days} days`;
+        return `${days}d left`;
     };
 
     const handleToggleTask = async (task: Assignment) => {
@@ -66,127 +77,202 @@ export default function StudyDashboard() {
         await insforge.database.from('assignments').update({ status: newStatus }).eq('id', task.id);
     };
 
+    const handleDeleteTask = async (id: string, type: 'assignment' | 'exam') => {
+        const table = type === 'assignment' ? 'assignments' : 'exams';
+        const { error } = await insforge.database.from(table).delete().eq('id', id);
+        if (!error) {
+            showToast('Deleted', 'success');
+            loadData();
+        }
+    };
 
     return (
-        <div className="h-full bg-campus-darker overflow-y-auto px-6 py-10">
-            <div className="max-w-7xl mx-auto">
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="h-full bg-[#F2F2F7] flex flex-col overflow-hidden font-sans">
+            {/* Header */}
+            <header className="bg-white px-5 pt-12 pb-5 border-b border-[#E5E5EA]">
+                <div className="flex justify-between items-end mb-6">
                     <div>
-                        <h1 className="text-2xl font-black text-white tracking-tight">Good Morning, {(user?.profile?.display_name as string)?.split(' ')[0] || 'Student'}</h1>
-                        <p className="text-campus-muted text-sm mt-1 font-medium">Ready to conquer your tasks today?</p>
+                        <p className="text-[13px] font-bold text-[#8E8E93] uppercase tracking-widest mb-1">
+                            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </p>
+                        <h1 className="text-[34px] font-bold text-black tracking-tight leading-tight">
+                            Study Center
+                        </h1>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => setExamMode(!examMode)}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border transition-all ${examMode ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-campus-card border-campus-border text-campus-muted hover:border-brand-500/30'}`}
+                    <button
+                        onClick={() => setShowAddModal({ type: 'assignment' })}
+                        className="w-10 h-10 bg-[#F2F2F7] rounded-full flex items-center justify-center text-[#007AFF] active:scale-90 transition-all"
+                    >
+                        <Plus size={24} strokeWidth={2.5} />
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between bg-[#F2F2F7] p-1 rounded-[10px]">
+                    <button
+                        onClick={() => setExamMode(false)}
+                        className={`flex-1 py-1.5 text-[13px] font-semibold rounded-[8px] transition-all ${!examMode ? 'bg-white shadow-sm text-black' : 'text-[#8E8E93]'}`}
+                    >
+                        Standard
+                    </button>
+                    <button
+                        onClick={() => setExamMode(true)}
+                        className={`flex-1 py-1.5 text-[13px] font-semibold rounded-[8px] transition-all ${examMode ? 'bg-white shadow-sm text-black' : 'text-[#8E8E93]'}`}
+                    >
+                        Exam Mode
+                    </button>
+                </div>
+            </header>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
+                {/* 2x2 Stats Grid */}
+                <div className="px-5 py-6 grid grid-cols-2 gap-4">
+                    <div className="bg-white p-4 rounded-[16px] shadow-sm border border-black/5 active:scale-[0.98] transition-all">
+                        <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] mb-3">
+                            <BookOpen size={18} />
+                        </div>
+                        <p className="text-[28px] font-bold text-black leading-none">{assignments.filter(a => a.status !== 'completed').length}</p>
+                        <p className="text-[14px] text-[#8E8E93] font-medium mt-1">Active Tasks</p>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-[16px] shadow-sm border border-black/5 active:scale-[0.98] transition-all">
+                        <div className="w-8 h-8 rounded-full bg-[#FF9500]/10 flex items-center justify-center text-[#FF9500] mb-3">
+                            <Calendar size={18} />
+                        </div>
+                        <p className="text-[28px] font-bold text-black leading-none">{exams.length}</p>
+                        <p className="text-[14px] text-[#8E8E93] font-medium mt-1">Upcoming Exams</p>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-[16px] shadow-sm border border-black/5 active:scale-[0.98] transition-all">
+                        <div className="w-8 h-8 rounded-full bg-[#34C759]/10 flex items-center justify-center text-[#34C759] mb-3">
+                            <CheckCircle2 size={18} />
+                        </div>
+                        <p className="text-[28px] font-bold text-black leading-none">{assignments.filter(a => a.status === 'completed').length}</p>
+                        <p className="text-[14px] text-[#8E8E93] font-medium mt-1">Done Today</p>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-[16px] shadow-sm border border-black/5 active:scale-[0.98] transition-all">
+                        <div className="w-8 h-8 rounded-full bg-[#AF52DE]/10 flex items-center justify-center text-[#AF52DE] mb-3">
+                            <Trophy size={18} />
+                        </div>
+                        <p className="text-[28px] font-bold text-black leading-none">12</p>
+                        <p className="text-[14px] text-[#8E8E93] font-medium mt-1">Study Streak</p>
+                    </div>
+                </div>
+
+                {/* Pomodoro Timer (if Exam Mode) */}
+                <AnimatePresence>
+                    {examMode && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                            animate={{ height: 'auto', opacity: 1, marginBottom: 24 }}
+                            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                            className="px-5 overflow-hidden"
                         >
-                            <span className="text-sm font-bold">Exam Mode</span>
-                            <div className={`w-11 h-6 rounded-full transition-colors ${examMode ? 'bg-amber-500' : 'bg-campus-darker'}`}>
-                                <div className={`w-5 h-5 mt-0.5 rounded-full bg-white transition-transform ${examMode ? 'translate-x-6 ml-0.5' : 'translate-x-0.5'}`} />
-                            </div>
-                        </button>
-                        <button onClick={() => setShowAddModal('assignment')} className="btn-primary px-5 py-2.5 rounded-2xl flex items-center gap-2 text-sm shadow-glow font-bold active:scale-95">
-                            <Plus size={18} strokeWidth={2.5} /> Add Task
-                        </button>
-                    </div>
-                </header>
-
-                {/* Middle: 3 stat cards (removed CGPA) */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-                    <div className="bg-campus-card rounded-[16px] overflow-hidden border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
-                        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
-                        <div className="p-6 flex flex-col items-center justify-center text-center">
-                            <p className="text-4xl font-black text-white mb-2 tracking-tight">{assignments.filter(a => a.status !== 'completed').length}</p>
-                            <p className="text-[11px] font-bold text-campus-muted uppercase tracking-wider">Pending Tasks</p>
-                        </div>
-                    </div>
-                    <div className="bg-campus-card rounded-[16px] overflow-hidden border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
-                        <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 to-amber-600"></div>
-                        <div className="p-6 flex flex-col items-center justify-center text-center">
-                            <p className="text-4xl font-black text-white mb-2 tracking-tight">{exams.length}</p>
-                            <p className="text-[11px] font-bold text-campus-muted uppercase tracking-wider">Upcoming Exams</p>
-                        </div>
-                    </div>
-                    <div className="bg-campus-card rounded-[16px] overflow-hidden border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
-                        <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-blue-600"></div>
-                        <div className="p-6 flex flex-col items-center justify-center text-center">
-                            <p className="text-4xl font-black text-white mb-2 tracking-tight">{notes.length}</p>
-                            <p className="text-[11px] font-bold text-campus-muted uppercase tracking-wider">Study Notes</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Exam Mode ON: Pomodoro */}
-                {examMode && <PomodoroWidget />}
-
-                {/* Notes search & list */}
-                <div className="mb-8">
-                    <div className="relative mb-4">
-                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-campus-muted" />
-                        <input type="text" value={searchNotes} onChange={e => setSearchNotes(e.target.value)} placeholder="Search notes from groups & channels..." className="w-full bg-campus-card/50 border border-campus-border/50 rounded-2xl pl-12 pr-4 py-3 text-white placeholder:text-campus-muted/60 outline-none focus:border-brand-500" />
-                    </div>
-                    {notes.length > 0 && (
-                        <div className="bg-campus-card rounded-[20px] p-5 border border-campus-border shadow-card">
-                            <h3 className="font-bold text-white mb-4">Study Notes</h3>
-                            <div className="space-y-2 max-h-48 overflow-y-auto">
-                                {notes
-                                    .filter(n => {
-                                        if (!searchNotes.trim()) return true;
-                                        const q = searchNotes.toLowerCase();
-                                        const title = (n.title || '').toLowerCase();
-                                        const content = (n.content || '').toLowerCase();
-                                        const subject = (n.subject || '').toLowerCase();
-                                        const tags = (n.tags || []).join(' ').toLowerCase();
-                                        return title.includes(q) || content.includes(q) || subject.includes(q) || tags.includes(q);
-                                    })
-                                    .map(n => (
-                                        <div key={n.id} className="flex items-center justify-between p-3 rounded-xl bg-campus-darker/50 border border-white/[0.03] hover:border-brand-500/30 transition-all">
-                                            <div>
-                                                <p className="font-bold text-white text-sm">{n.title}</p>
-                                                <p className="text-xs text-campus-muted">{n.subject || n.type}</p>
-                                            </div>
-                                            <span className="text-[10px] font-bold text-campus-muted uppercase">{n.type}</span>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
+                            <PomodoroWidget />
+                        </motion.div>
                     )}
+                </AnimatePresence>
+
+                {/* Search & Secondary Content */}
+                <div className="px-5 mb-8">
+                    <div className="bg-[#E5E5EA]/50 rounded-[10px] px-3 py-2 flex items-center gap-2 mb-6">
+                        <Search size={18} className="text-[#8E8E93]" />
+                        <input
+                            type="text"
+                            value={searchNotes}
+                            onChange={e => setSearchNotes(e.target.value)}
+                            placeholder="Search tasks or notes..."
+                            className="bg-transparent w-full text-[17px] outline-none placeholder:text-[#8E8E93] text-black"
+                        />
+                    </div>
+
+                    <div className="space-y-6 mb-8">
+                        {user?.id && (
+                            <>
+                                <div className="bg-white rounded-[16px] border border-black/5 shadow-sm overflow-hidden p-2">
+                                    <LeetCodeWidget userId={user.id} />
+                                </div>
+                                <div className="bg-white rounded-[16px] border border-black/5 shadow-sm overflow-hidden">
+                                    <LeetCodeComparison userId={user.id} />
+                                </div>
+                            </>
+                        )}
+                        {!user?.id && <div className="p-4 text-center text-[#8E8E93] bg-white rounded-[16px] border border-black/5 shadow-sm">Sign in to see stats</div>}
+                    </div>
                 </div>
 
-                {/* Bottom: Upcoming tasks list */}
-                <div className="bg-campus-card rounded-[24px] p-6 lg:p-8 border border-campus-border shadow-card mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="font-bold text-lg text-white">Upcoming Tasks</h3>
-                        <button onClick={() => setShowAddModal('exam')} className="text-sm font-bold text-brand-400 hover:text-brand-300 transition-colors">Add Exam</button>
+                {/* Minimalist Task List */}
+                <div className="px-5">
+                    <div className="flex items-center justify-between mb-3 px-1">
+                        <h3 className="text-[20px] font-bold text-black">Upcoming Tasks</h3>
+                        <button
+                            onClick={() => setShowAddModal({ type: 'assignment' })}
+                            className="text-[15px] font-semibold text-[#007AFF]"
+                        >
+                            See All
+                        </button>
                     </div>
-                    <div className="space-y-3">
-                        {assignments.length > 0 ? assignments.map(a => (
-                            <div key={a.id} className="flex items-center justify-between p-4 rounded-[16px] bg-campus-darker/50 border border-white/[0.03] hover:border-brand-500/30 hover:bg-white/[0.02] transition-all group">
-                                <div className="flex items-center gap-4">
-                                    <button onClick={() => handleToggleTask(a)} className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all ${a.status === 'completed' ? 'bg-brand-500 text-white' : 'border-2 border-campus-muted/50 hover:border-brand-500 group-hover:bg-white/5'}`}>
-                                        {a.status === 'completed' && <CheckCircle2 size={16} strokeWidth={3} />}
+
+                    <div className="bg-white rounded-[20px] shadow-sm border border-black/5 divide-y divide-[#E5E5EA] overflow-hidden">
+                        {assignments.length > 0 ? (
+                            assignments.slice(0, 5).map(a => (
+                                <div key={a.id} className="flex items-center gap-4 p-4 active:bg-[#F2F2F7] transition-colors group">
+                                    <button
+                                        onClick={() => handleToggleTask(a)}
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${a.status === 'completed'
+                                            ? 'bg-[#34C759] border-[#34C759] text-white'
+                                            : 'border-[#C6C6C8] bg-white'
+                                            }`}
+                                    >
+                                        {a.status === 'completed' && <CheckCircle2 size={14} strokeWidth={3} />}
                                     </button>
-                                    <div>
-                                        <h4 className={`font-bold text-[15px] transition-colors tracking-tight ${a.status === 'completed' ? 'text-campus-muted line-through' : 'text-white'}`}>{a.title}</h4>
-                                        <p className="text-xs font-medium text-campus-muted mt-0.5">{a.subject} <span className="mx-1">•</span> {a.conversation_id ? 'Group' : 'Personal'}</p>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className={`text-[17px] font-semibold truncate transition-all ${a.status === 'completed' ? 'text-[#8E8E93] line-through' : 'text-black'}`}>
+                                            {a.title}
+                                        </h4>
+                                        <p className="text-[13px] text-[#8E8E93]">{a.subject} • {getDaysUntil(a.due_date || '')}</p>
                                     </div>
+                                    <ChevronRight size={16} className="text-[#C4C4C6] flex-shrink-0" />
                                 </div>
-                                <div className="shrink-0 text-right">
-                                    <div className="text-[11px] font-bold text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-full uppercase tracking-wide">{getDaysUntil(a.due_date || '')}</div>
-                                </div>
-                            </div>
-                        )) : (
-                            <div className="text-center py-12 opacity-50">
-                                <CheckCircle2 size={48} className="mx-auto mb-4 text-emerald-500 opacity-60" strokeWidth={1.5} />
-                                <p className="font-bold text-white text-lg tracking-tight">All caught up!</p>
-                                <p className="text-sm font-medium text-campus-muted mt-1">You have no pending tasks to conquer.</p>
+                            ))
+                        ) : (
+                            <div className="py-12 text-center">
+                                <Trophy size={40} className="mx-auto mb-3 text-[#34C759] opacity-30" />
+                                <p className="text-[17px] font-bold text-black">All Caught Up!</p>
+                                <p className="text-[15px] text-[#8E8E93] px-8">You've completed all your tasks for now.</p>
                             </div>
                         )}
                     </div>
                 </div>
-
-                {showAddModal && <AddDialog type={showAddModal} onClose={() => setShowAddModal(null)} onCreated={loadData} userId={user?.id || ''} groups={myGroups} showToast={showToast} />}
             </div>
+
+            {/* Add Task/Exam Dialog (iOS Sheet) */}
+            <AnimatePresence>
+                {showAddModal && (
+                    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowAddModal(null)}>
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="w-full max-w-[430px] bg-[#F2F2F7] rounded-t-[20px] overflow-hidden flex flex-col h-[60vh] pb-safe"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="w-10 h-1.5 bg-[#BCBCC0] rounded-full mx-auto my-3" />
+                            <AddDialog
+                                type={showAddModal.type}
+                                item={showAddModal.item}
+                                onClose={() => setShowAddModal(null)}
+                                onCreated={loadData}
+                                userId={user?.id || ''}
+                                groups={myGroups}
+                                showToast={showToast}
+                            />
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
@@ -194,78 +280,149 @@ export default function StudyDashboard() {
 function PomodoroWidget() {
     const [totalSeconds, setTotalSeconds] = useState(25 * 60);
     const [isRunning, setIsRunning] = useState(false);
+
     useEffect(() => {
         if (!isRunning) return;
         const t = setInterval(() => setTotalSeconds(s => s <= 0 ? 25 * 60 : s - 1), 1000);
         return () => clearInterval(t);
     }, [isRunning]);
+
     const m = Math.floor(totalSeconds / 60);
     const s = totalSeconds % 60;
+
     return (
-        <div className="mb-8 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-6">
+        <div className="bg-white p-5 rounded-[16px] border border-[#E5E5EA] shadow-sm flex items-center justify-between">
             <div>
-                <h3 className="font-bold text-amber-400">Pomodoro Focus</h3>
-                <p className="text-sm text-campus-muted">25 min work • 5 min break</p>
+                <h3 className="text-[17px] font-bold text-black flex items-center gap-2">
+                    Focus Timer
+                </h3>
+                <p className="text-[13px] text-[#8E8E93]">25m work • 5m break</p>
             </div>
             <div className="flex items-center gap-4">
-                <span className="text-3xl font-mono font-black text-white">{String(m).padStart(2,'0')}:{String(s).padStart(2,'0')}</span>
-                <button onClick={() => setIsRunning(!isRunning)} className={`px-4 py-2 rounded-xl text-sm font-bold ${isRunning ? 'bg-amber-500/30 text-amber-300' : 'bg-amber-500 text-white'}`}>{isRunning ? 'Pause' : 'Start'}</button>
-                <button onClick={() => { setTotalSeconds(25 * 60); setIsRunning(false); }} className="px-3 py-2 rounded-xl bg-white/5 text-campus-muted hover:text-white text-sm">Reset</button>
+                <span className="text-[32px] font-mono font-bold text-[#FF9500]">
+                    {String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+                </span>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setIsRunning(!isRunning)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isRunning ? 'bg-[#FF3B30] text-white' : 'bg-[#34C759] text-white'
+                            }`}
+                    >
+                        {isRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+                    </button>
+                    <button
+                        onClick={() => { setTotalSeconds(25 * 60); setIsRunning(false); }}
+                        className="w-10 h-10 bg-[#E5E5EA] rounded-full flex items-center justify-center text-[#8E8E93]"
+                    >
+                        <RotateCcw size={18} />
+                    </button>
+                </div>
             </div>
         </div>
     );
 }
 
-function AddDialog({ type, onClose, onCreated, userId, groups, showToast }: { type: 'assignment' | 'exam', onClose: () => void, onCreated: () => void, userId: string, groups: Conversation[], showToast: (m: string, t: 'success'|'error'|'info') => void }) {
-    const [title, setTitle] = useState('');
-    const [subject, setSubject] = useState('');
-    const [date, setDate] = useState('');
-    const [selectedScope, setSelectedScope] = useState('personal');
+function AddDialog({ type, item, onClose, onCreated, userId, groups, showToast }: { type: 'assignment' | 'exam', item?: any, onClose: () => void, onCreated: () => void, userId: string, groups: Conversation[], showToast: (m: string, t: 'success' | 'error' | 'info') => void }) {
+    const [title, setTitle] = useState(item?.title || '');
+    const [subject, setSubject] = useState(item?.subject || '');
+    const [date, setDate] = useState(item?.due_date || item?.exam_date || '');
+    const [selectedScope, setSelectedScope] = useState(item?.conversation_id || 'personal');
 
     const handleSave = async () => {
         if (!title.trim()) return;
         try {
-            const payload = { user_id: userId, title, subject, conversation_id: selectedScope === 'personal' ? null : selectedScope };
-            if (type === 'assignment') {
-                const { error } = await insforge.database.from('assignments').insert([{ ...payload, due_date: date || null, status: 'pending', priority: 'medium' }]);
+            const payload = {
+                user_id: userId,
+                title,
+                subject,
+                conversation_id: selectedScope === 'personal' ? null : selectedScope,
+                updated_at: new Date().toISOString()
+            };
+
+            const table = type === 'assignment' ? 'assignments' : 'exams';
+            const dateField = type === 'assignment' ? 'due_date' : 'exam_date';
+
+            if (item?.id) {
+                const { error } = await insforge.database
+                    .from(table)
+                    .update({ ...payload, [dateField]: date || null })
+                    .eq('id', item.id);
                 if (error) throw error;
+                showToast(`Updated!`, 'success');
             } else {
-                const { error } = await insforge.database.from('exams').insert([{ ...payload, exam_date: date || new Date().toISOString(), exam_type: 'internal' }]);
-                if (error) throw error;
+                if (type === 'assignment') {
+                    const { error } = await insforge.database
+                        .from('assignments')
+                        .insert([{ ...payload, [dateField]: date || null, status: 'pending', priority: 'medium' }]);
+                    if (error) throw error;
+                } else {
+                    const { error } = await insforge.database
+                        .from('exams')
+                        .insert([{ ...payload, [dateField]: date || new Date().toISOString(), exam_type: 'internal' }]);
+                    if (error) throw error;
+                }
+                showToast(`Saved!`, 'success');
             }
-            showToast(`${type === 'assignment' ? 'Task' : 'Exam'} added!`, 'success');
             onCreated();
             onClose();
         } catch (err) {
-            showToast('Failed to add. Try again.', 'error');
+            showToast('Failed to save', 'error');
         }
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="glass-card p-8 w-full max-w-md">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-black text-white">Add {type}</h2>
-                    <button onClick={onClose} className="text-campus-muted hover:text-white"><X size={20} /></button>
-                </div>
-                <div className="space-y-4">
-                    <input autoFocus placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white outline-none focus:border-brand-500" />
-                    <input placeholder="Subject (e.g. CS201)" value={subject} onChange={e => setSubject(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white outline-none focus:border-brand-500" />
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-campus-muted ml-2 uppercase">Due Date</label>
-                            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white text-xs outline-none" />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-campus-muted ml-2 uppercase">Scope</label>
-                            <select value={selectedScope} onChange={e => setSelectedScope(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white text-xs outline-none cursor-pointer">
-                                <option value="personal">Personal</option>
-                                {groups.map(g => <option key={g.id} value={g.id}>{g.name || 'Group'}</option>)}
-                            </select>
-                        </div>
+        <div className="flex flex-col h-full bg-white">
+            <div className="px-5 py-4 flex justify-between items-center border-b border-[#E5E5EA]">
+                <button onClick={onClose} className="text-[#007AFF] text-[17px]">Cancel</button>
+                <h3 className="text-[17px] font-bold">{item?.id ? 'Edit' : 'New'} {type === 'assignment' ? 'Task' : 'Exam'}</h3>
+                <button onClick={handleSave} className="text-[#007AFF] text-[17px] font-bold">Save</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#F2F2F7]">
+                <section className="bg-white rounded-[12px] border border-[#E5E5EA] divide-y divide-[#E5E5EA] overflow-hidden">
+                    <div className="px-4 py-3 flex gap-4">
+                        <label className="text-[15px] font-medium text-[#8E8E93] w-20 pt-1">Title</label>
+                        <input
+                            autoFocus
+                            placeholder="Homework, etc."
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            className="flex-1 text-[15px] text-black outline-none"
+                        />
                     </div>
-                    <button onClick={handleSave} className="w-full btn-primary py-4 rounded-2xl font-bold mt-4 shadow-glow">Create {type}</button>
-                </div>
+                    <div className="px-4 py-3 flex gap-4">
+                        <label className="text-[15px] font-medium text-[#8E8E93] w-20 pt-1">Subject</label>
+                        <input
+                            placeholder="CS101, Math..."
+                            value={subject}
+                            onChange={e => setSubject(e.target.value)}
+                            className="flex-1 text-[15px] text-black outline-none"
+                        />
+                    </div>
+                </section>
+
+                <section className="bg-white rounded-[12px] border border-[#E5E5EA] divide-y divide-[#E5E5EA] overflow-hidden">
+                    <div className="px-4 py-3 flex gap-4">
+                        <label className="text-[15px] font-medium text-[#8E8E93] w-20 pt-1">Date</label>
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={e => setDate(e.target.value)}
+                            className="flex-1 text-[15px] text-black outline-none cursor-pointer"
+                        />
+                    </div>
+                    <div className="px-4 py-3 flex gap-4">
+                        <label className="text-[15px] font-medium text-[#8E8E93] w-20 pt-1">Scope</label>
+                        <select
+                            value={selectedScope}
+                            onChange={e => setSelectedScope(e.target.value)}
+                            className="flex-1 bg-transparent text-[15px] text-black outline-none cursor-pointer"
+                        >
+                            <option value="personal">Personal</option>
+                            {groups.map(g => <option key={g.id} value={g.id}>{g.name || 'Group'}</option>)}
+                        </select>
+                    </div>
+                </section>
             </div>
         </div>
     );

@@ -28,13 +28,23 @@ interface AppState {
     onboardingStep: number;
     setOnboardingStep: (step: number) => void;
 
-    // Toast
-    toast: { message: string; type: 'success' | 'error' | 'info' } | null;
+    toasts: Array<{ id: string; message: string; type: 'success' | 'error' | 'info'; duration: number }>;
+    addToast: (message: string, type?: 'success' | 'error' | 'info', duration?: number) => void;
+    removeToast: (id: string) => void;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
     hideToast: () => void;
+
+    // Permissions
+    notificationPermission: NotificationPermission | 'unsupported';
+    setNotificationPermission: (perm: NotificationPermission | 'unsupported') => void;
+
+    // Theme Management
+    theme: 'light' | 'dark';
+    setTheme: (theme: 'light' | 'dark') => void;
+    toggleTheme: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
     // Exam Mode
     examMode: false,
     examCountdownTarget: undefined,
@@ -60,17 +70,54 @@ export const useAppStore = create<AppState>((set) => ({
     onboardingStep: 0,
     setOnboardingStep: (onboardingStep) => set({ onboardingStep }),
 
-    // Toast
-    toast: null,
-    showToast: (message, type = 'info') => {
-        set({ toast: { message, type } });
-        setTimeout(() => set({ toast: null }), 3000);
+    // Toast Queue
+    toasts: [],
+    addToast: (message, type = 'info', duration = 3000) => {
+        const id = Math.random().toString(36).substring(2, 9);
+        set((state) => ({
+            toasts: [...state.toasts, { id, message, type, duration }]
+        }));
+
+        if (duration > 0) {
+            setTimeout(() => {
+                get().removeToast(id);
+            }, duration);
+        }
     },
-    hideToast: () => set({ toast: null }),
+    removeToast: (id) => {
+        set((state) => ({
+            toasts: state.toasts.filter(t => t.id !== id)
+        }));
+    },
+    showToast: (message, type = 'info') => get().addToast(message, type),
+    hideToast: () => {
+        const first = get().toasts[0];
+        if (first) get().removeToast(first.id);
+    },
+
+    // Permissions
+    notificationPermission: (typeof window !== 'undefined' && 'Notification' in window) ? Notification.permission : 'unsupported',
+    setNotificationPermission: (notificationPermission) => set({ notificationPermission }),
+
+    // Theme Management
+    theme: (localStorage.getItem('campusly_theme') as 'light' | 'dark') || 'light',
+    setTheme: (theme) => {
+        set({ theme });
+        localStorage.setItem('campusly_theme', theme);
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+    },
+    toggleTheme: () => {
+        const nextSync = get().theme === 'light' ? 'dark' : 'light';
+        get().setTheme(nextSync);
+    },
 }));
 
-// Initialize exam mode from localStorage
+// Initialize settings from localStorage
 const savedExamMode = localStorage.getItem('campusly_exam_mode');
 if (savedExamMode) {
     useAppStore.getState().setExamMode(JSON.parse(savedExamMode));
+}
+const savedTheme = localStorage.getItem('campusly_theme') as 'light' | 'dark';
+if (savedTheme) {
+    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
 }

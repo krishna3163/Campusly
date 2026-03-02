@@ -1,398 +1,318 @@
-import { useState, useEffect, useRef } from 'react';
-import { useUser, UserButton } from '@insforge/react';
-import { insforge } from '../../lib/insforge';
-import { useAppStore } from '../../stores/appStore';
-import type { UserProfile } from '../../types';
+import { useState, useEffect } from 'react';
+import { useUser } from '@insforge/react';
+import { useNavigate } from 'react-router-dom';
 import {
     Settings,
     Shield,
-    HardDrive,
+    Bell,
+    Palette,
+    LogOut,
     ChevronRight,
-    Award,
-    Star,
-    BookOpen,
     MessageCircle,
+    Zap,
+    Heart,
+    Star,
     Edit3,
     Camera,
-    Heart,
-    Code2,
-    Zap,
+    CheckCircle,
     X,
-    Save,
-    Share2,
-    Lock,
-    Eye,
-    Palette,
-    BellRing,
+    User as UserIcon,
+    Moon,
+    Info
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { UserProfile } from '../../types';
+import { useMediaUpload } from '../../hooks/useMediaUpload';
+import { useAppStore } from '../../stores/appStore';
+import { insforge } from '../../lib/insforge';
 
 export default function ProfilePage() {
     const { user } = useUser();
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [isOnline] = useState(navigator.onLine);
-    const [messageCount, setMessageCount] = useState<number | string>(0);
-    const [notesCount, setNotesCount] = useState<number | string>(0);
+    const navigate = useNavigate();
+    const { uploadFile } = useMediaUpload();
+    const { showToast } = useAppStore();
+
+    const [profile, setProfile] = useState<UserProfile | null>((user?.profile as any) || null);
+    const [loading, setLoading] = useState(!user?.profile);
     const [showEditModal, setShowEditModal] = useState(false);
-    const [activeSetting, setActiveSetting] = useState<string | null>(null);
-    const [uploadingAvatar, setUploadingAvatar] = useState(false);
-    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [editData, setEditData] = useState({
+        display_name: '',
+        bio: '',
+        department: ''
+    });
 
     useEffect(() => {
-        if (user?.id) { loadProfile(); loadStats(); }
-    }, [user?.id]);
+        if (user?.id && !profile) {
+            loadProfile();
+        } else if (profile) {
+            setEditData({
+                display_name: profile.display_name || '',
+                bio: profile.bio || '',
+                department: (profile as any).metadata?.department || ''
+            });
+        }
+    }, [user?.id, profile]);
 
     const loadProfile = async () => {
         if (!user?.id) return;
-        const { data } = await insforge.database.from('profiles').select('*').eq('id', user.id).single();
-        if (data) setProfile(data as UserProfile);
-    };
-
-    const loadStats = async () => {
-        if (!user?.id) return;
-        const [msgRes, noteRes] = await Promise.all([
-            insforge.database.from('messages').select('id', { count: 'exact', head: true }).eq('sender_id', user.id),
-            insforge.database.from('notes').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
-        ]);
-        setMessageCount(msgRes.count ?? 0);
-        setNotesCount(noteRes.count ?? 0);
-    };
-
-    const handleChangeAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !user?.id || !file.type.startsWith('image/')) return;
-        setUploadingAvatar(true);
+        setLoading(true);
         try {
-            const { data, error } = await insforge.storage.from('avatars').upload(`${user.id}_${Date.now()}.jpg`, file);
-            if (error) throw error;
-            const url = data?.url;
-            if (url) {
-                const { error: updErr } = await insforge.database.from('profiles').update({ avatar_url: url, updated_at: new Date().toISOString() }).eq('id', user.id);
-                if (!updErr) setProfile(p => p ? { ...p, avatar_url: url } : null);
+            const { data, error } = await insforge.database
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (data) {
+                setProfile(data as UserProfile);
+                setEditData({
+                    display_name: data.display_name || '',
+                    bio: data.bio || '',
+                    department: (data as any).metadata?.department || ''
+                });
             }
-        } catch (_) {
-            try {
-                const { data, error } = await insforge.storage.from('attachments').upload(`avatars/${user.id}_${Date.now()}.jpg`, file);
-                if (!error && data?.url) {
-                    await insforge.database.from('profiles').update({ avatar_url: data.url, updated_at: new Date().toISOString() }).eq('id', user.id);
-                    setProfile(p => p ? { ...p, avatar_url: data.url } : null);
-                }
-            } catch (__) {}
+        } catch (err) {
+            console.error('Profile load error:', err);
         } finally {
-            setUploadingAvatar(false);
-            e.target.value = '';
+            setLoading(false);
         }
     };
 
-    const handleActionClick = (id: string) => {
-        if (id === 'Local Data') {
-            if (confirm("Wipe all locally cached messages? This will free space but require re-syncing.")) {
-                alert("Cache wiped successfully.");
-            }
-        } else {
-            setActiveSetting(id);
-        }
-    };
-
-    const menuItems = [
-        { icon: Shield, label: 'Privacy & Security', subtitle: 'E2E Encryption Keys', color: 'text-emerald-400' },
-        { icon: BellRing, label: 'Push Notifications', subtitle: 'Manage campus alerts', color: 'text-amber-400' },
-        { icon: Palette, label: 'Aesthetics', subtitle: 'Glassmorphism & Darkness', color: 'text-purple-400' },
-        { icon: HardDrive, label: 'Local Data', subtitle: 'Wipe offline cache', color: 'text-cyan-400' },
+    const stats = [
+        { label: 'Posts', count: '1.2K', icon: Zap, color: 'text-[#007AFF]' },
+        { label: 'Friends', count: '480', icon: MessageCircle, color: 'text-[#5856D6]' },
+        { label: 'Karma', count: '98%', icon: Heart, color: 'text-[#FF2D55]' },
+        { label: 'Rank', count: '#4', icon: Star, color: 'text-[#FF9500]' },
     ];
 
-    return (
-        <div className="h-full bg-campus-darker overflow-y-auto pb-12">
-            {/* High-end Banner Section */}
-            <div className="relative h-64 lg:h-80 bg-gradient-to-br from-brand-600/40 via-purple-600/20 to-pink-600/10 overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-campus-darker to-transparent" />
+    const menuSections = [
+        {
+            title: 'Account',
+            items: [
+                { icon: UserIcon, label: 'Edit Profile', color: 'bg-[#007AFF]', onClick: () => setShowEditModal(true) },
+                { icon: Shield, label: 'Privacy & Security', color: 'bg-[#34C759]', onClick: () => navigate('/app/settings') },
+                { icon: Bell, label: 'Notifications', color: 'bg-[#FF3B30]', onClick: () => navigate('/app/settings') },
+            ]
+        },
+        {
+            title: 'Appearance',
+            items: [
+                { icon: Palette, label: 'Themes', color: 'bg-[#AF52DE]', onClick: () => navigate('/app/settings') },
+                { icon: Moon, label: 'Dark Mode', color: 'bg-[#1C1C1E]', onClick: () => navigate('/app/settings') },
+            ]
+        },
+        {
+            title: 'Support',
+            items: [
+                { icon: Info, label: 'About Campusly', color: 'bg-[#8E8E93]', onClick: () => navigate('/app/settings') },
+            ]
+        }
+    ];
 
-                {/* Banner Actions */}
-                <div className="absolute top-8 right-8 flex gap-3 z-20">
-                    <button onClick={() => alert("Profile link copied!")} className="p-3 bg-black/20 backdrop-blur-md rounded-2xl hover:bg-black/40 transition-all border border-white/5 text-white active:scale-90">
-                        <Share2 size={20} />
-                    </button>
-                    <button onClick={() => setShowEditModal(true)} className="p-3 bg-brand-600 rounded-2xl hover:bg-brand-500 transition-all shadow-glow text-white active:scale-95">
-                        <Edit3 size={20} />
-                    </button>
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !user?.id) return;
+
+        try {
+            const url = await uploadFile(file, 'avatars');
+            if (url) {
+                const { error } = await insforge.database
+                    .from('profiles')
+                    .update({ avatar_url: url })
+                    .eq('id', user.id);
+
+                if (error) throw error;
+                showToast('Avatar updated', 'success');
+                window.location.reload();
+            }
+        } catch (err: any) {
+            showToast('Update failed: ' + err.message, 'error');
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        if (!user?.id) return;
+        try {
+            const { error } = await insforge.database
+                .from('profiles')
+                .update({
+                    display_name: editData.display_name,
+                    bio: editData.bio,
+                    metadata: { ...(user.profile as any)?.metadata, department: editData.department }
+                })
+                .eq('id', user.id);
+
+            if (error) throw error;
+            showToast('Profile updated', 'success');
+            setShowEditModal(false);
+            window.location.reload();
+        } catch (err: any) {
+            showToast('Update failed: ' + err.message, 'error');
+        }
+    };
+
+    return (
+        <div className="h-full bg-[#F2F2F7] flex flex-col overflow-hidden font-sans">
+            {/* iOS Styled Profile Header */}
+            <div className="bg-white px-4 pt-12 pb-6 border-b border-[#E5E5EA] flex flex-col items-center">
+                <div className="relative mb-4">
+                    <div className="w-24 h-24 rounded-full bg-[#F2F2F7] overflow-hidden border border-black/5 shadow-sm">
+                        {user?.profile?.avatar_url ? (
+                            <img src={user.profile.avatar_url} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-3xl font-bold bg-[#E5E5EA] text-[#8E8E93]">
+                                {(user as any)?.display_name?.charAt(0) || '?'}
+                            </div>
+                        )}
+                    </div>
+                    <label className="absolute bottom-0 right-0 p-1.5 bg-white rounded-full shadow-md border border-[#E5E5EA] active:scale-90 transition-all cursor-pointer">
+                        <Camera size={18} className="text-[#007AFF]" />
+                        <input type="file" className="hidden" onChange={handleAvatarUpload} accept="image/*" />
+                    </label>
+                </div>
+
+                <div className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                        <h2 className="text-[22px] font-bold text-black tracking-tight leading-tight">
+                            {((user?.profile as any)?.display_name || (user as any)?.display_name || 'Anonymous User') as string}
+                        </h2>
+                        {(user?.profile as any)?.is_verified && (
+                            <CheckCircle size={18} fill="#007AFF" className="text-white" />
+                        )}
+                    </div>
+                    <p className="text-[15px] text-[#8E8E93] mt-0.5">
+                        @{((user as any)?.username || 'user') as string} • {((user?.profile as any)?.metadata?.department || 'Student') as string}
+                    </p>
+                    {(user?.profile as any)?.bio && (
+                        <p className="text-[14px] text-black mt-2 max-w-[280px] mx-auto leading-tight">
+                            {(user?.profile as any).bio as string}
+                        </p>
+                    )}
                 </div>
             </div>
 
-            <main className="max-w-6xl mx-auto px-6 -mt-32 relative z-10 animate-fade-in">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
-                    {/* Left Panel — Identity */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="glass-card p-8 flex flex-col items-center text-center">
-                            <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleChangeAvatar} />
-                            <div className="relative mb-6">
-                                <div className="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-brand-500 to-purple-500 p-1 shadow-glow-lg group cursor-pointer relative" onClick={() => avatarInputRef.current?.click()}>
-                                    <div className="w-full h-full rounded-[38px] bg-campus-dark flex items-center justify-center overflow-hidden border-4 border-campus-dark transition-transform group-hover:scale-95">
-                                        {profile?.avatar_url ? (
-                                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <span className="text-4xl font-black text-white">{profile?.display_name?.charAt(0) || 'U'}</span>
-                                        )}
-                                    </div>
-                                    <div className="absolute inset-0 bg-black/40 rounded-[38px] opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white gap-1">
-                                        <Camera size={24} />
-                                        <span className="text-[10px] font-bold">Change Photo</span>
-                                    </div>
-                                    {uploadingAvatar && (
-                                        <div className="absolute inset-0 bg-black/60 rounded-[38px] flex items-center justify-center">
-                                            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className={`absolute bottom-2 right-2 w-6 h-6 rounded-full border-4 border-campus-dark ${isOnline ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]' : 'bg-gray-500'}`} />
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto no-scrollbar">
+                {/* Stats Section */}
+                <div className="px-4 py-6">
+                    <div className="bg-white rounded-[12px] p-4 flex justify-between shadow-sm border border-black/5">
+                        {stats.map((stat: any) => (
+                            <div key={stat.label} className="flex flex-col items-center px-2">
+                                <span className="text-[17px] font-bold text-black">{stat.count}</span>
+                                <span className="text-[12px] text-[#8E8E93] uppercase font-semibold mt-0.5 tracking-tight">{stat.label}</span>
                             </div>
-
-                            <h1 className="text-2xl font-black text-white mb-1">{profile?.display_name || 'Anonymous User'}</h1>
-                            <p className="text-sm text-campus-muted font-medium mb-4">{user?.email}</p>
-
-                            {profile?.activity_status && (
-                                <div className="mb-6 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-bold shadow-glow">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
-                                    </span>
-                                    Currently: {profile.activity_status}
-                                </div>
-                            )}
-
-                            <div className="flex flex-wrap justify-center gap-2 mb-8">
-                                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase text-brand-400 flex items-center gap-1.5 leading-none">
-                                    <Code2 size={12} /> {profile?.branch || 'General'}
-                                </span>
-                                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5 leading-none">
-                                    <Zap size={12} /> Sem {profile?.semester || 1}
-                                </span>
-                            </div>
-
-                            <div className="w-full grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
-                                <div className="text-center">
-                                    <p className="text-xl font-black text-white">{profile?.reputation_score || 0}</p>
-                                    <p className="text-[10px] text-campus-muted font-bold uppercase">Reputation</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-xl font-black text-white">{profile?.badges?.length || 0}</p>
-                                    <p className="text-[10px] text-campus-muted font-bold uppercase">Badges</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="glass-card p-6 border-brand-500/20 bg-brand-500/5">
-                            <h3 className="font-bold text-sm mb-4 flex items-center gap-2 text-white">
-                                <Award size={18} className="text-brand-400" />
-                                Recent Achievements
-                            </h3>
-                            <div className="space-y-3">
-                                {['Early Bird', 'Knowledge Seeker', 'Helper'].map(b => (
-                                    <div key={b} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-default">
-                                        <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400"><Star size={14} /></div>
-                                        <span className="text-xs font-bold text-white/80">{b}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        ))}
                     </div>
+                </div>
 
-                    {/* Right Panel — Settings & Activity */}
-                    <div className="lg:col-span-8 space-y-8">
-                        {/* Stats Overview */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            {[
-                                { label: 'Messages Sent', val: messageCount, icon: MessageCircle, color: 'text-blue-400' },
-                                { label: 'Notes Contributed', val: notesCount, icon: BookOpen, color: 'text-emerald-400' },
-                                { label: 'Forum Karma', val: 245, icon: Heart, color: 'text-pink-400' },
-                            ].map(s => (
-                                <div key={s.label} className="glass-card p-6 flex items-center gap-4 transition-transform hover:scale-105 group cursor-default">
-                                    <div className={`p-3 rounded-2xl bg-white/5 ${s.color} transition-transform group-hover:rotate-12`}><s.icon size={24} /></div>
-                                    <div>
-                                        <p className="text-2xl font-black text-white">{s.val}</p>
-                                        <p className="text-[10px] text-campus-muted font-black uppercase tracking-widest">{s.label}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Account Settings */}
-                        <div className="glass-card overflow-hidden">
-                            <div className="px-8 py-6 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-                                <h2 className="text-xl font-black text-white">Account Settings</h2>
-                                <Settings size={20} className="text-campus-muted" />
-                            </div>
-                            <div className="p-2 space-y-1">
-                                {menuItems.map(item => (
+                {/* Menu Sections */}
+                <div className="space-y-8 pb-32">
+                    {menuSections.map((section: any) => (
+                        <div key={section.title}>
+                            <h3 className="px-5 text-[13px] text-[#6E6E73] font-medium uppercase tracking-tight mb-2 ml-1">{section.title}</h3>
+                            <div className="bg-white border-y border-[#E5E5EA] divide-y divide-[#E5E5EA]">
+                                {section.items.map((item: any) => (
                                     <button
                                         key={item.label}
-                                        onClick={() => handleActionClick(item.label)}
-                                        className="w-full flex items-center justify-between px-6 py-5 rounded-2xl hover:bg-white/5 transition-all text-left group"
+                                        onClick={item.onClick}
+                                        className="w-full flex items-center justify-between py-3 px-4 active:bg-[#F2F2F7] transition-colors group"
                                     >
-                                        <div className="flex items-center gap-6">
-                                            <div className={`w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform`}>
-                                                <item.icon size={22} />
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-7 h-7 rounded-[7px] ${item.color} flex items-center justify-center text-white`}>
+                                                <item.icon size={16} strokeWidth={2.5} />
                                             </div>
-                                            <div>
-                                                <p className="font-bold text-white">{item.label}</p>
-                                                <p className="text-xs text-campus-muted">{item.subtitle}</p>
-                                            </div>
+                                            <span className="text-[17px] text-black">{item.label}</span>
                                         </div>
-                                        <ChevronRight size={20} className="text-campus-muted group-hover:text-white group-hover:translate-x-1 transition-all" />
+                                        <ChevronRight size={18} className="text-[#C4C4C6]" />
                                     </button>
                                 ))}
                             </div>
                         </div>
+                    ))}
 
-                        {/* Security Features Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="glass-card p-6 border-emerald-500/20 bg-emerald-500/5 group cursor-pointer hover:bg-emerald-500/10 transition-all">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Lock size={18} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-                                    <h3 className="text-sm font-bold text-emerald-400">E2E Encryption</h3>
-                                </div>
-                                <p className="text-xs text-white/60 leading-relaxed">Your chats are automatically encrypted. Only you and the recipient hold the keys to decrypt messages. Campusly cannot read your private data.</p>
-                            </div>
-                            <div className="glass-card p-6 border-amber-500/20 bg-amber-500/5 group cursor-pointer hover:bg-amber-500/10 transition-all">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Eye size={18} className="text-amber-400 group-hover:scale-110 transition-transform" />
-                                    <h3 className="text-sm font-bold text-amber-400">Privacy Guard</h3>
-                                </div>
-                                <p className="text-xs text-white/60 leading-relaxed">Adjust your visibility settings in the Privacy section. You can choose to be seen as Anonymous in Campus feed posts.</p>
-                            </div>
-                        </div>
-
-                        {/* Logout Section */}
-                        <div className="glass-card p-1 flex justify-center hover:bg-red-500/5 transition-all">
-                            <div className="w-full grayscale hover:grayscale-0 transition-all py-2 rounded-2xl flex justify-center">
-                                <UserButton />
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </main>
-
-            {/* Edit Modal */}
-            {showEditModal && profile && (
-                <EditProfileDialog
-                    profile={profile}
-                    onClose={() => setShowEditModal(false)}
-                    onSaved={(updated) => { setProfile(updated); setShowEditModal(false); }}
-                />
-            )}
-
-            {/* Generic Settings Modal placeholder */}
-            {activeSetting && (
-                <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in text-center">
-                    <div className="glass-card p-12 w-full max-w-sm">
-                        <h2 className="text-2xl font-black text-white mb-4">{activeSetting}</h2>
-                        <p className="text-campus-muted mb-8 text-sm">Managing your {activeSetting.toLowerCase()} preferences. Syncing with local mesh...</p>
-                        <button onClick={() => setActiveSetting(null)} className="btn-primary w-full py-3 rounded-2xl font-bold">Close Dialog</button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function EditProfileDialog({ profile, onClose, onSaved }: { profile: UserProfile, onClose: () => void, onSaved: (p: UserProfile) => void }) {
-    const { user } = useUser();
-    const { showToast } = useAppStore();
-    const avatarInputRef = useRef<HTMLInputElement>(null);
-    const [name, setName] = useState(profile.display_name);
-    const [bio, setBio] = useState(profile.bio || '');
-    const [branch, setBranch] = useState(profile.branch || '');
-    const [semester, setSemester] = useState(profile.semester?.toString() || '');
-    const [activity, setActivity] = useState((profile as any).activity_status || 'active');
-    const [saving, setSaving] = useState(false);
-
-    const handleSave = async () => {
-        setSaving(true);
-        const updates = { display_name: name, bio, branch, activity_status: activity, semester: parseInt(semester) || 1, updated_at: new Date().toISOString() };
-        const optimisticProfile = { ...profile, ...updates } as UserProfile;
-        onSaved(optimisticProfile);
-        try {
-            const { data, error } = await insforge.database.from('profiles').update(updates).eq('id', profile.id).select().single();
-            if (error) throw error;
-            if (data) {
-                onSaved(data as UserProfile);
-                showToast('Profile updated successfully!', 'success');
-                onClose();
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('Failed to update profile. Please try again.', 'error');
-            onSaved(profile);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in">
-            <div className="glass-card p-8 w-full max-w-lg animate-scale-in">
-                <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-2xl font-black text-white flex items-center gap-3"><Edit3 className="text-brand-400" /> Identity Hub</h2>
-                    <button onClick={onClose} className="text-campus-muted hover:text-white p-2 hover:bg-white/5 rounded-xl transition-all"><X size={24} /></button>
-                </div>
-                <div className="space-y-5">
-                    <div className="flex items-center gap-4">
-                        <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !user?.id || !file.type.startsWith('image/')) return;
-                            try {
-                                const { data, error } = await insforge.storage.from('avatars').upload(`${user.id}_${Date.now()}.jpg`, file);
-                                if (error) { const r = await insforge.storage.from('attachments').upload(`avatars/${user.id}_${Date.now()}.jpg`, file); if (!r.error && r.data?.url) { await insforge.database.from('profiles').update({ avatar_url: r.data.url, updated_at: new Date().toISOString() }).eq('id', user.id); onSaved({ ...profile, avatar_url: r.data.url } as UserProfile); showToast('Photo updated!', 'success'); } return; }
-                                if (data?.url) { await insforge.database.from('profiles').update({ avatar_url: data.url, updated_at: new Date().toISOString() }).eq('id', user.id); onSaved({ ...profile, avatar_url: data.url } as UserProfile); showToast('Photo updated!', 'success'); }
-                            } catch (_) {}
-                            e.target.value = '';
-                        }} />
-                        <button type="button" onClick={() => avatarInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
-                            <Camera size={20} className="text-brand-400" />
-                            <span className="text-sm font-bold text-white">Change Profile Photo</span>
+                    <div className="px-4">
+                        <button
+                            onClick={() => navigate('/logout')}
+                            className="w-full bg-white border-y border-[#E5E5EA] py-3 text-[#FF3B30] text-[17px] font-bold active:bg-[#F2F2F7] transition-colors"
+                        >
+                            Log Out
                         </button>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Full Identity</label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 text-white" />
+
+                    <div className="text-center opacity-40 py-8">
+                        <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.2em]">Campusly v2.0</p>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Status Bio</label>
-                        <textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 h-24 resize-none text-white text-sm" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Current Activity Status (Visible to Friends/Classmates)</label>
-                        <select value={activity} onChange={e => setActivity(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 text-white appearance-none">
-                            <option value="active" className="bg-campus-dark text-white">Active</option>
-                            <option value="studying" className="bg-campus-dark text-white">📖 Studying</option>
-                            <option value="coding" className="bg-campus-dark text-white">💻 Coding</option>
-                            <option value="movie" className="bg-campus-dark text-white">🍿 Watching Movie</option>
-                            <option value="game" className="bg-campus-dark text-white">🎮 Gaming</option>
-                            <option value="timepass" className="bg-campus-dark text-white">✨ Timepass</option>
-                            <option value="dnd" className="bg-campus-dark text-white">⛔ Do Not Disturb</option>
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Academic Branch</label>
-                            <input type="text" value={branch} onChange={e => setBranch(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 text-white" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] uppercase font-black text-campus-muted tracking-widest pl-1">Semester</label>
-                            <input type="number" value={semester} onChange={e => setSemester(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:border-brand-500 text-white" />
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="btn-primary w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-glow mt-4 disabled:opacity-50"
-                    >
-                        {saving ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save size={20} />}
-                        {saving ? 'Syncing...' : 'Update Identity'}
-                    </button>
                 </div>
             </div>
+
+            {/* Edit Profile Modal Sheet */}
+            <AnimatePresence>
+                {showEditModal && (
+                    <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowEditModal(false)}>
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="w-full max-w-[430px] bg-[#F2F2F7] rounded-t-[20px] overflow-hidden flex flex-col h-[70vh]"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="w-10 h-1.5 bg-[#BCBCC0] rounded-full mx-auto my-3" />
+
+                            <div className="px-5 py-4 flex justify-between items-center bg-white border-b border-[#E5E5EA]">
+                                <button onClick={() => setShowEditModal(false)} className="text-[#007AFF] text-[17px]">Cancel</button>
+                                <h3 className="text-[17px] font-bold">Edit Profile</h3>
+                                <button
+                                    onClick={handleSaveProfile}
+                                    className="text-[#007AFF] text-[17px] font-bold"
+                                >
+                                    Done
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto pt-6 space-y-6">
+                                <section>
+                                    <div className="bg-white border-y border-[#E5E5EA] divide-y divide-[#E5E5EA]">
+                                        <div className="px-4 py-3 flex gap-4 items-center">
+                                            <label className="text-[15px] font-medium text-[#8E8E93] w-24">Name</label>
+                                            <input
+                                                type="text"
+                                                value={editData.display_name}
+                                                onChange={e => setEditData({ ...editData, display_name: e.target.value })}
+                                                className="flex-1 text-[15px] text-black outline-none"
+                                                placeholder="Display Name"
+                                            />
+                                        </div>
+                                        <div className="px-4 py-3 flex gap-4 items-center">
+                                            <label className="text-[15px] font-medium text-[#8E8E93] w-24">Department</label>
+                                            <input
+                                                type="text"
+                                                value={editData.department}
+                                                onChange={e => setEditData({ ...editData, department: e.target.value })}
+                                                className="flex-1 text-[15px] text-black outline-none"
+                                                placeholder="e.g. Computer Science"
+                                            />
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <div className="bg-white border-y border-[#E5E5EA] px-4 py-3">
+                                        <label className="text-[13px] text-[#8E8E93] uppercase font-medium mb-2 block">About You</label>
+                                        <textarea
+                                            value={editData.bio}
+                                            onChange={e => setEditData({ ...editData, bio: e.target.value })}
+                                            rows={4}
+                                            className="w-full text-[15px] text-black outline-none resize-none pt-1"
+                                            placeholder="Write a short bio..."
+                                        />
+                                    </div>
+                                </section>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

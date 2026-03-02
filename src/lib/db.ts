@@ -10,6 +10,8 @@ export interface LocalMessage {
     type: string;
     replyTo?: string;
     replyToMessageId?: string;
+    replyThreadId?: string; // For supergroup topics
+    forwardFromId?: string; // Original message sender ID if forwarded
     isDoubt: boolean;
     isImportant: boolean;
     isEdited: boolean;
@@ -30,17 +32,21 @@ export interface LocalMessage {
         localId?: string;
         thumbnailUrl?: string;
     }>;
-    pollData?: Record<string, unknown>;
-    reactions: Record<string, string[]>;
+    pollId?: string; // Reference to polls table
+    viewCount: number; // For channel posts
     metadata: Record<string, unknown>;
     syncStatus: 'synced' | 'pending' | 'failed';
-    createdAt: string;
     updatedAt: string;
+    scheduledAt?: string; // For scheduled messages
+    isViewOnce: boolean;
+    isHD: boolean;
+    expiresAt?: string; // For disappearing messages
+    encryptionType: string;
 }
 
 export interface LocalConversation {
     id: string;
-    type: 'direct' | 'group' | 'broadcast' | 'subject_channel';
+    type: 'private' | 'group' | 'supergroup' | 'channel';
     name?: string;
     description?: string;
     avatarUrl?: string;
@@ -48,9 +54,22 @@ export interface LocalConversation {
     semester?: number;
     createdBy?: string;
     isExamMode: boolean;
+    isPublic: boolean;
+    inviteLink?: string;
+    slowModeDelay?: number; // In seconds
+    topicEnabled?: boolean;
+    memberCount: number;
+    subscriberCount: number;
     lastMessage?: string;
     lastMessageAt?: string;
     unreadCount: number;
+    disappearingTimer?: number;
+    isArchived: boolean;
+    isMuted: boolean;
+    muteUntil?: string;
+    wallpaper?: string;
+    communityId?: string;
+    isAnnouncement: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -59,10 +78,93 @@ export interface LocalConversationMember {
     id: string;
     conversationId: string;
     userId: string;
-    role: 'admin' | 'moderator' | 'member';
+    role: 'owner' | 'admin' | 'moderator' | 'member';
     muted: boolean;
     joinedAt: string;
     lastReadAt: string;
+    permissions?: string[]; // Custom permissions override
+}
+
+export interface LocalGroupInvite {
+    id: string;
+    conversationId: string;
+    createdBy: string;
+    code: string;
+    maxUses?: number;
+    currentUses: number;
+    expiresAt?: string;
+    isRevoked: boolean;
+    createdAt: string;
+}
+
+export interface LocalGroupJoinRequest {
+    id: string;
+    conversationId: string;
+    userId: string;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    processedBy?: string;
+    processedAt?: string;
+}
+
+export interface LocalPinnedMessage {
+    id: string;
+    conversationId: string;
+    messageId: string;
+    pinnedBy: string;
+    order: number;
+    pinnedAt: string;
+}
+
+export interface LocalReaction {
+    id: string;
+    messageId: string;
+    userId: string;
+    emoji: string;
+    createdAt: string;
+}
+
+export interface LocalPoll {
+    id: string;
+    conversationId: string;
+    creatorId: string;
+    question: string;
+    options: string[];
+    isAnonymous: boolean;
+    isMultipleChoice: boolean;
+    isQuiz: boolean;
+    correctOptionIndex?: number;
+    totalVotes: number;
+    expiresAt?: string;
+    createdAt: string;
+}
+
+export interface LocalPollVote {
+    id: string;
+    pollId: string;
+    userId: string;
+    optionIndex: number;
+    createdAt: string;
+}
+
+export interface LocalAdminLog {
+    id: string;
+    conversationId: string;
+    adminId: string;
+    action: 'user_added' | 'user_removed' | 'permission_changed' | 'message_deleted' | 'slow_mode_changed' | 'topic_created' | 'info_edited';
+    targetId?: string;
+    details: Record<string, unknown>;
+    createdAt: string;
+}
+
+export interface LocalChannelSetting {
+    conversationId: string;
+    commentEnabled: boolean;
+    allowReactions: boolean;
+    autoDeleteDays: number; // 0 for disabled
+    slowMode: number;
+    publicVisibility: boolean;
+    updatedAt: string;
 }
 
 export interface LocalProfile {
@@ -83,6 +185,104 @@ export interface LocalProfile {
     streakDays: number;
     streakLastDate?: string;
     examMode: boolean;
+    privacySettings: Record<string, any>;
+    statusPrivacy: string;
+}
+
+export interface LocalStatusStory {
+    id: string;
+    userId: string;
+    type: 'text' | 'image' | 'video';
+    content?: string;
+    mediaUrl?: string;
+    mediaLocalId?: string;
+    caption?: string;
+    backgroundColor?: string;
+    fontStyle?: string;
+    viewCount: number;
+    expiresAt: string;
+    createdAt: string;
+}
+
+export interface LocalStatusView {
+    id: string;
+    statusId: string;
+    userId: string;
+    viewedAt: string;
+}
+
+export interface LocalBroadcastList {
+    id: string;
+    creatorId: string;
+    name: string;
+    memberCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface LocalBroadcastMember {
+    id: string;
+    listId: string;
+    userId: string;
+    joinedAt: string;
+}
+
+export interface LocalCommunity {
+    id: string;
+    name: string;
+    description?: string;
+    avatarUrl?: string;
+    creatorId: string;
+    announcementGroupId: string;
+    memberCount: number;
+    groupCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface LocalCommunityGroup {
+    id: string;
+    communityId: string;
+    conversationId: string;
+    addedAt: string;
+}
+
+export interface LocalCall {
+    id: string;
+    type: 'audio' | 'video';
+    conversationId?: string;
+    initiatorId: string;
+    status: 'ringing' | 'active' | 'ended' | 'missed' | 'rejected' | 'busy';
+    isGroup: boolean;
+    startedAt: string;
+    endedAt?: string;
+}
+
+export interface LocalCallParticipant {
+    id: string;
+    callId: string;
+    userId: string;
+    status: string;
+    joinedAt?: string;
+    leftAt?: string;
+}
+
+export interface LocalLinkedDevice {
+    id: string;
+    userId: string;
+    deviceName: string;
+    deviceType: string;
+    lastActive: string;
+    isTrusted: boolean;
+    publicKey: string;
+    createdAt: string;
+}
+
+export interface LocalStarredMessage {
+    id: string;
+    messageId: string;
+    userId: string;
+    createdAt: string;
 }
 
 export interface LocalNote {
@@ -183,6 +383,14 @@ export interface LocalPreference {
     updatedAt: string;
 }
 
+export interface LocalSetting {
+    category: string;
+    key: string;
+    value: any;
+    updatedAt: string;
+    isSynced: boolean;
+}
+
 // ===== DATABASE CLASS =====
 
 class CampuslyDB extends Dexie {
@@ -198,6 +406,25 @@ class CampuslyDB extends Dexie {
     notifications!: Table<LocalNotification>;
     xpEvents!: Table<LocalXPEvent>;
     preferences!: Table<LocalPreference>;
+    settings!: Table<LocalSetting>;
+    groupInvites!: Table<LocalGroupInvite>;
+    groupJoinRequests!: Table<LocalGroupJoinRequest>;
+    pinnedMessages!: Table<LocalPinnedMessage>;
+    reactionsTable!: Table<LocalReaction>;
+    polls!: Table<LocalPoll>;
+    pollVotes!: Table<LocalPollVote>;
+    adminLogs!: Table<LocalAdminLog>;
+    channelSettings!: Table<LocalChannelSetting>;
+    statuses!: Table<LocalStatusStory>;
+    statusViews!: Table<LocalStatusView>;
+    broadcastLists!: Table<LocalBroadcastList>;
+    broadcastMembers!: Table<LocalBroadcastMember>;
+    communities!: Table<LocalCommunity>;
+    communityGroups!: Table<LocalCommunityGroup>;
+    callsTable!: Table<LocalCall>;
+    callParticipants!: Table<LocalCallParticipant>;
+    linkedDevices!: Table<LocalLinkedDevice>;
+    starredMessages!: Table<LocalStarredMessage>;
 
     constructor() {
         super('CampuslyDB');
@@ -216,7 +443,7 @@ class CampuslyDB extends Dexie {
             notifications: 'id, userId, isRead, createdAt',
         });
 
-        // Version 2: Enhanced schema with new tables and indexes
+        // Version 2: Enhanced schema
         this.version(2).stores({
             messages: 'id, conversationId, senderId, createdAt, syncStatus, status, [conversationId+createdAt]',
             conversations: 'id, type, updatedAt, lastMessageAt',
@@ -230,6 +457,67 @@ class CampuslyDB extends Dexie {
             notifications: 'id, userId, isRead, createdAt, [userId+isRead+createdAt]',
             xpEvents: 'id, userId, action, createdAt, synced',
             preferences: 'key, updatedAt',
+            settings: '[category+key], category, key, updatedAt',
+        });
+
+        // Version 3: Telegram Expansion (Groups, Channels, Polls, Admin Logs)
+        this.version(3).stores({
+            messages: 'id, conversationId, senderId, createdAt, syncStatus, status, type, replyThreadId, forwardFromId, scheduledAt, [conversationId+createdAt]',
+            conversations: 'id, type, updatedAt, lastMessageAt, isPublic, createdBy',
+            conversationMembers: 'id, conversationId, userId, role, [conversationId+userId]',
+            groupInvites: 'id, conversationId, code, createdBy, isRevoked',
+            groupJoinRequests: 'id, conversationId, userId, status, requestedAt',
+            pinnedMessages: 'id, conversationId, messageId, [conversationId+order]',
+            reactionsTable: 'id, messageId, userId, emoji, [messageId+userId]',
+            polls: 'id, conversationId, creatorId, createdAt',
+            pollVotes: 'id, pollId, userId, [pollId+userId]',
+            adminLogs: 'id, conversationId, adminId, action, createdAt',
+            channelSettings: 'conversationId, updatedAt',
+            profiles: 'id, campusId, examMode',
+            notes: 'id, userId, subject, semester, folderPath, syncStatus, campusId',
+            assignments: 'id, userId, status, dueDate, syncStatus, [userId+dueDate]',
+            exams: 'id, userId, examDate, syncStatus, campusId, [campusId+examDate]',
+            mediaCache: 'id, messageId, cachedAt',
+            syncQueue: 'id, status, table, createdAt, nextRetryAt',
+            notifications: 'id, userId, isRead, createdAt, [userId+isRead+createdAt]',
+            xpEvents: 'id, userId, action, createdAt, synced',
+            preferences: 'key, updatedAt',
+            settings: '[category+key], category, key, updatedAt',
+        });
+
+        // Version 4: WhatsApp Expansion (Status, Broadcast, Community, Calls, Encryption)
+        this.version(4).stores({
+            messages: 'id, conversationId, senderId, createdAt, syncStatus, status, type, replyThreadId, expiresAt, encryptionType, [conversationId+createdAt]',
+            conversations: 'id, type, updatedAt, lastMessageAt, isPublic, isArchived, communityId, [type+updatedAt]',
+            conversationMembers: 'id, conversationId, userId, role, [conversationId+userId]',
+            groupInvites: 'id, conversationId, code, createdBy',
+            groupJoinRequests: 'id, conversationId, userId, status, requestedAt',
+            pinnedMessages: 'id, conversationId, messageId, [conversationId+order]',
+            reactionsTable: 'id, messageId, userId, emoji, [messageId+userId]',
+            polls: 'id, conversationId, creatorId, createdAt',
+            pollVotes: 'id, pollId, userId, [pollId+userId]',
+            adminLogs: 'id, conversationId, adminId, action, createdAt',
+            channelSettings: 'conversationId, updatedAt',
+            statuses: 'id, userId, type, expiresAt, createdAt',
+            statusViews: 'id, statusId, userId, viewedAt, [statusId+userId]',
+            broadcastLists: 'id, creatorId, name, updatedAt',
+            broadcastMembers: 'id, listId, userId, [listId+userId]',
+            communities: 'id, creatorId, name, announcementGroupId',
+            communityGroups: 'id, communityId, conversationId, [communityId+conversationId]',
+            callsTable: 'id, initiatorId, status, startedAt',
+            callParticipants: 'id, callId, userId, [callId+userId]',
+            linkedDevices: 'id, userId, lastActive',
+            starredMessages: 'id, messageId, userId, [messageId+userId]',
+            profiles: 'id, campusId, examMode',
+            notes: 'id, userId, subject, semester, folderPath, syncStatus, campusId',
+            assignments: 'id, userId, status, dueDate, syncStatus, [userId+dueDate]',
+            exams: 'id, userId, examDate, syncStatus, campusId, [campusId+examDate]',
+            mediaCache: 'id, messageId, cachedAt',
+            syncQueue: 'id, status, table, createdAt, nextRetryAt',
+            notifications: 'id, userId, isRead, createdAt, [userId+isRead+createdAt]',
+            xpEvents: 'id, userId, action, createdAt, synced',
+            preferences: 'key, updatedAt',
+            settings: '[category+key], category, key, updatedAt',
         });
     }
 }

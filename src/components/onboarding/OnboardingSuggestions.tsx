@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@insforge/react';
 import { generateSuggestions, recordSuggestionAction, completeOnboarding } from '../../services/suggestionEngine';
-import { sendFriendRequest } from '../../services/friendService';
+import { FriendService } from '../../services/friendService';
 import type { UserProfile } from '../../types';
 import type { UserSuggestion } from '../../types/social';
 import {
@@ -39,7 +39,7 @@ export default function OnboardingSuggestions({ profile, onComplete }: Props) {
 
     const handleConnect = async (suggestion: UserSuggestion) => {
         if (!user?.id) return;
-        await sendFriendRequest(user.id, suggestion.user.id);
+        await FriendService.sendFriendRequest(user.id, suggestion.user.id);
         await recordSuggestionAction(user.id, suggestion.user.id, 'connected');
         setConnected(prev => new Set([...prev, suggestion.user.id]));
     };

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { insforge } from '../../lib/insforge';
 import { useAppStore } from '../../stores/appStore';
 import { X } from 'lucide-react';
+import { JobService } from '../../services/JobService';
 
 const BRANCH_TAGS = ['CSE', 'BTech', 'BCA', 'MCA', 'Mechanical', 'ECE', 'EEE', 'Civil', 'MBA'];
 const CUSTOM_TAG = 'Custom';
@@ -21,6 +22,7 @@ export default function JobListingForm({
     const [saving, setSaving] = useState(false);
     const [title, setTitle] = useState('');
     const [companyName, setCompanyName] = useState('');
+    const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
     const [applyLink, setApplyLink] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -44,28 +46,33 @@ export default function JobListingForm({
     };
 
     const handleSave = async () => {
-        if (!title.trim() || !companyName.trim()) {
-            showToast('Title and Company are required.', 'error');
+        if (!title.trim() || !companyName.trim() || !location.trim()) {
+            showToast('Title, Company, and Location are required.', 'error');
             return;
         }
         setSaving(true);
         try {
-            const { error } = await insforge.database.from('placement_jobs').insert({
+            const { error } = await JobService.postJob({
                 author_id: userId,
                 campus_id: campusId || null,
                 title: title.trim(),
                 company_name: companyName.trim(),
-                description: description.trim() || null,
-                apply_link: applyLink.trim() || null,
-                start_date: startDate || null,
-                last_date: lastDate || null,
-                experience_required: experienceRequired.trim() || null,
+                location: location.trim(),
+                description: description.trim() || undefined,
+                apply_link: applyLink.trim() || undefined,
+                start_date: startDate ? new Date(startDate).toISOString().split('T')[0] : undefined,
+                last_date: lastDate ? new Date(lastDate).toISOString().split('T')[0] : undefined,
+                experience_required: experienceRequired.trim() || undefined,
                 branch_eligibility: branchEligibility,
                 hashtags: branchEligibility,
-                is_active: true,
-                updated_at: new Date().toISOString(),
+                is_active: true
             });
-            if (error) throw error;
+
+            if (error) {
+                showToast(error, 'error');
+                return;
+            }
+
             showToast('Job listing posted successfully!', 'success');
             onSaved();
         } catch (err) {
@@ -91,6 +98,10 @@ export default function JobListingForm({
                     <div>
                         <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Company Name *</label>
                         <input value={companyName} onChange={e => setCompanyName(e.target.value)} className="input-field py-3" placeholder="e.g. TechCorp Inc." />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Location *</label>
+                        <input value={location} onChange={e => setLocation(e.target.value)} className="input-field py-3" placeholder="e.g. Remote, San Francisco, Bangalore" />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Description</label>

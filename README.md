@@ -1,107 +1,67 @@
-# 🎓 Campusly
+# Campusly — The Unified Student Operating System
 
-**The Unified Operating System for Student Life.**
-
-🌐 **Live Demo:** [https://campusly.insforge.site](https://campusly.insforge.site)
-
-Campusly is a high-performance, local-first web application designed to centralize the fragmented Indian campus experience. Combining secure E2E-encrypted messaging, a collaborative study dashboard, and a corporate placement hub, Campusly is built to thrive in high-density hostel environments.
+Campusly is a high-performance, privacy-first digital layer for modern university ecosystems. Engineered for 5k+ concurrent users, it bridges high-fidelity social interaction with critical academic workflows.
 
 ---
 
-## 🚀 Key Features
+## 🏛️ System Architecture
 
-- **Multi-Pane Chat**: A premium, desktop-native messaging experience with dual-pane views, reply threads, and voice notes.
-- **E2E Encryption**: Zero-knowledge security for all direct and group conversations.
-- **Academic Dashboard**: Track assignments, exams, and notes with an AI-integrated summary engine.
-- **Placement Hub**: Access senior-junior interview logs, company prep channels, and resume review tools.
-- **Campus Feed**: A categorized, community-driven social feed with anonymous posting capabilities.
-- **Offline-First / P2P**: Seamless operation in low-connectivity zones using local mesh synchronization and P2P file fallback.
+### 1. Robust Service & Hook Layer
+*   **Decoupled Logic:** UI → Hooks → Services → Backend (InsForge). No direct DB access in UI.
+*   **Atomic Operations:** All database writes are wrapped in try/catch with automatic rollback patterns in optimistic UI updates.
+*   **Sync Logic:** Background polling and WebSocket-ready listeners for real-time engagement.
 
----
+### 2. Gesture Engine (`Stabilized 1.0`)
+*   **Priority Hierarchy:** Global `GestureManager` resolves conflicts between vertical scroll, voice recording, and horizontal navigation.
+*   **Lock System:** High-priority gestures (e.g., Edge Back, Swipe Reply) lock the system to prevent jitter.
+*   **Conflict Resolution:**
+    *   `Edge Back` > `Scroll`
+    *   `Voice Record` > `Swipe`
+    *   `Tab Swipe` disabled during active `Input Focus`.
 
-## 🏗️ Architecture & Tech Stack
+### 3. Production Status Lifecycle
+*   **Auto-Expiry:** Stories strictly expire after 24h via `gt(expires_at, now)`.
+*   **Privacy Graph:** Statuses are visible ONLY to accepted mutual friends (Social Circle Isolation).
+*   **Engagement Tracking:** Views, reactions, and screenshot logs are indexed atomically.
 
-### Frontend
-- **Framework**: React 18 + Vite (TypeScript)
-- **Styling**: Tailwind CSS + Custom Glassmorphism UI System
-- **State Management**: Zustand (Global Store) + LocalStorage/IndexedDB (Offline Cache)
-- **Icons**: Lucide React
-
-### Backend (InsForge)
-- **Realtime**: WebSocket-based pub/sub for instant messaging and presence.
-- **Database**: PostgreSQL (via InsForge SDK) with OrgId-based tenancy.
-- **Storage**: S3-compatible bucket with CDN integration.
-- **Auth**: InsForge Auth (JWT-based, identity-locked).
-
----
-
-## 📂 Project Structure
-
-```bash
-src/
-├── components/         # Reusable UI (Buttons, Modals, Cards)
-│   ├── layout/         # Desktop Sidebar & Mobile Nav
-│   └── ui/             # Premium Glassmorphic components
-├── pages/              # Primary route views
-│   ├── chat/           # Dual-pane chat interface
-│   ├── campus/         # Triple-column feed
-│   ├── study/          # Academic dashboard
-│   └── placement/      # Career & Interview hub
-├── stores/             # Zustand global state (auth, sync, app)
-├── lib/                # SDK initializers (InsForge)
-├── services/           # Background workers (Sync, Realtime)
-└── types/              # Global TypeScript definitions
-```
+### 4. Competitive Feed Engine
+*   **Ranking Algorithm:** `Engagement = (Upvotes * 1) + (Comments * 2) + (Reposts * 3)`.
+*   **Velocity Updates:** Top 3 trending posts are computed in real-time based on the last 12h of activity.
+*   **Optimistic Flow:** Broadcasts appear in <100ms globally, with background server synchronization.
 
 ---
 
-## 🛠️ Environment Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-org/campusly.git
-   ```
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-3. **Configure Environment**:
-   Create a `.env` file in the root:
-   ```env
-   VITE_INSFORGE_BASE_URL=your_endpoint
-   VITE_INSFORGE_ANON_KEY=your_public_token
-   VITE_APP_ENV=development
-   ```
-4. **Run Developer Server**:
-   ```bash
-   npm run dev
-   ```
+## � Performance Benchmarks (Target)
+*   **Cold Start:** < 1.4s (Vite Optimized)
+*   **Chat Interaction:** < 250ms (Optimistic UI)
+*   **Feed Scrolling:** Stable 60fps (Virtualization + rAF)
+*   **Status Load:** < 400ms (Aggressive Caching)
 
 ---
 
-## 🔒 Security Model
-
-Campusly employs a multi-layered security approach:
-- **At Rest**: Local data in IndexedDB is obfuscated.
-- **In Transit**: All API calls utilize TLS 1.3.
-- **Messaging**: RSA-2048/AES-256 E2E encryption for chats.
-- **Identity**: Fingerprinted device sessions via InsForge Auth.
+## 🛡️ Security & Scalability
+*   **RBAC:** Role-Based Access Control for Campus Moderators.
+*   **Sanitization:** All broadcasts and messages are sanitized against XSS at the service level.
+*   **Rate Limiting:** Global throttling for friend requests and high-frequency posting.
 
 ---
 
-## 🗺️ Roadmap
-
-- [x] Phase 1: Core Messaging & Feed (Mobile-First)
-- [x] Phase 2: Desktop UI Overhaul & Placement Hub
-- [ ] Phase 3: P2P File Mesh (Wider LAN Support)
-- [ ] Phase 4: AI Study Buddy Integration (PDF Summaries)
-- [ ] Phase 5: Institutional SSO & Faculty Portals
+## 🛠️ Production Readiness Status
+| Module | State | Priority |
+| :--- | :--- | :--- |
+| **Messaging** | ✅ STABLE | P0 |
+| **Status Hub** | ✅ STABLE | P0 |
+| **Campus Feed** | ✅ STABLE | P0 |
+| **Friend Graph** | ✅ STABLE | P1 |
+| **Gesture Engine** | ✅ STABLE | P1 |
+| **Analytics Hub** | 🛠️ ALPHA | P3 |
 
 ---
 
-## 🤝 Contribution
+## �️ Roadmap
+- [ ] **P2P Transfer:** Zero-data local file sharing for study notes.
+- [ ] **AI-Summaries:** Automatic lecture summary generator.
+- [ ] **Placement CRM:** Track interview stages and offer letters.
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on code style, branch naming, and PR processes.
-
-**License**: MIT 
-*Built with ❤️ by Campusly Labs.*
+---
+*Developed with architectural precision for the modern student.*

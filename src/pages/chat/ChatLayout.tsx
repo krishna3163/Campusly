@@ -1,20 +1,24 @@
-import { Outlet, useParams } from 'react-router-dom';
+import { Outlet, useParams, useLocation } from 'react-router-dom';
 import ChatListPage from './ChatListPage';
 import { MessageSquare } from 'lucide-react';
 
 export default function ChatLayout() {
     const { chatId } = useParams<{ chatId: string }>();
+    const location = useLocation();
+
+    // Show outlet if we have a chatId or if we're on a sub-route like /discover
+    const showOutlet = !!chatId || location.pathname.includes('/discover');
 
     return (
         <div className="h-full flex overflow-hidden">
             {/* Left Sidebar (List) — Visible on desktop/tablet, hidden on mobile when a chat is open */}
-            <div className={`w-full md:w-80 lg:w-[350px] shrink-0 ${chatId ? 'hidden md:block' : 'block'}`}>
+            <div className={`w-full md:w-80 lg:w-[350px] shrink-0 ${showOutlet ? 'hidden md:block' : 'block'}`}>
                 <ChatListPage />
             </div>
 
             {/* Right Pane (Messages) — Visible on mobile when chat is open, always visible on desktop */}
-            <div className={`flex-1 h-full min-w-0 ${!chatId ? 'hidden md:flex' : 'flex'} flex-col bg-campus-darker`}>
-                {chatId ? (
+            <div className={`flex-1 h-full min-w-0 ${!showOutlet ? 'hidden md:flex' : 'flex'} flex-col bg-campus-darker`}>
+                {showOutlet ? (
                     <Outlet />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-campus-darker/50">

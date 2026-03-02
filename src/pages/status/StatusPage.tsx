@@ -1,219 +1,265 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useUser } from '@insforge/react';
-import { useNavigate } from 'react-router-dom';
-import { insforge } from '../../lib/insforge';
-import { useMediaUpload } from '../../hooks/useMediaUpload';
-import type { UserProfile } from '../../types';
-import { Plus, Eye, X, Image, Video, Music, FileText, Lightbulb, Users, UserCheck } from 'lucide-react';
-
-type StatusType = 'thought' | 'note' | 'photo' | 'video' | 'audio';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    Plus,
+    Camera,
+    ChevronLeft,
+    Palette,
+    Sparkles,
+    Shield,
+    Lock,
+    Eye,
+    ScanLine
+} from 'lucide-react';
+import { UserProfile } from '../../types';
+import { useStatus } from '../../hooks/useStatus';
+import { useAppStore } from '../../stores/appStore';
+import { StoryViewer } from '../../components/stories/StoryViewer';
+import { StoryCamera } from '../../components/stories/StoryCamera';
+import { StoryEditor } from '../../components/stories/StoryEditor';
+import { StatusService } from '../../services/statusService';
 
 export default function StatusPage() {
     const { user } = useUser();
     const navigate = useNavigate();
-    const [myStatus, setMyStatus] = useState<string | null>(null);
-    const [statusUpdates, setStatusUpdates] = useState<{ profile: UserProfile; status?: string; time?: string }[]>([]);
-    const [showAddStatus, setShowAddStatus] = useState(false);
-    const { uploadFile } = useMediaUpload();
+    const location = useLocation();
+    const { viewUserId } = useParams<{ viewUserId?: string }>();
+    const { showToast } = useAppStore();
+
+    const { statuses, loading } = useStatus(user?.id);
+    const [viewingUser, setViewingUser] = useState<string | null>(viewUserId || (location.state as any)?.viewUserId || null);
+
+    // UI State
+    const [showCamera, setShowCamera] = useState((location.state as any)?.openCamera || false);
+    const [showPrivacy, setShowPrivacy] = useState(false);
+    const [capturedFile, setCapturedFile] = useState<{ file: File; type: 'image' | 'video' } | null>(null);
 
     useEffect(() => {
-        if (user?.id) loadStatus();
-    }, [user?.id]);
+        if (viewUserId) setViewingUser(viewUserId);
+    }, [viewUserId]);
 
-    const loadStatus = async () => {
-        if (!user?.id) return;
-        try {
-            const { data: profile } = await insforge.database.from('profiles').select('*').eq('id', user.id).single();
-            const activity = (profile as any)?.activity_status;
-            setMyStatus(activity || null);
-
-            const { data: members } = await insforge.database.from('conversation_members').select('conversation_id').eq('user_id', user.id);
-            if (!members?.length) return;
-            const { data: convs } = await insforge.database.from('conversations').select('id').in('id', members.map(m => m.conversation_id)).eq('type', 'direct');
-            if (!convs?.length) return;
-            const otherIds = new Set<string>();
-            for (const c of convs) {
-                const { data: m } = await insforge.database.from('conversation_members').select('user_id').eq('conversation_id', c.id).neq('user_id', user.id).limit(1);
-                if (m?.[0]) otherIds.add(m[0].user_id);
-            }
-            if (otherIds.size === 0) return;
-            const { data: profiles } = await insforge.database.from('profiles').select('*').in('id', Array.from(otherIds));
-            setStatusUpdates((profiles || []).map(p => ({
-                profile: p as UserProfile,
-                status: (p as any).activity_status || undefined,
-                time: 'Recent',
-            })));
-        } catch (_) {}
+    const handleNextUser = () => {
+        const uids = Object.keys(statuses);
+        const currentIdx = uids.indexOf(viewingUser || '');
+        if (currentIdx < uids.length - 1) {
+            setViewingUser(uids[currentIdx + 1]);
+        } else {
+            setViewingUser(null);
+            navigate('/app/status', { replace: true });
+        }
     };
 
-    const handleAddStatus = () => setShowAddStatus(true);
-
-    const saveStatus = (text: string, type: StatusType = 'thought', mediaUrl?: string, _visibility?: 'followers' | 'individual', _visibleTo?: string[]) => {
-        if (!user?.id) return;
-        const content = text.trim() || mediaUrl || '';
-        if (!content) return;
-        insforge.database.from('profiles').update({
-            activity_status: type === 'note' ? `📝 ${text.slice(0, 50)}` : type === 'thought' ? text : type === 'photo' ? '📷 Photo' : type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : text,
-            updated_at: new Date().toISOString(),
-        }).eq('id', user.id).then(() => {
-            setMyStatus(content);
-            setShowAddStatus(false);
-            loadStatus();
-        });
+    const handlePrevUser = () => {
+        const uids = Object.keys(statuses);
+        const currentIdx = uids.indexOf(viewingUser || '');
+        if (currentIdx > 0) {
+            setViewingUser(uids[currentIdx - 1]);
+        }
     };
 
     return (
-        <div className="h-full bg-campus-darker overflow-y-auto">
-            <div className="max-w-2xl mx-auto p-6">
-                <div className="flex items-center justify-between mb-8">
-                    <h1 className="text-2xl font-black text-white">Status</h1>
-                    <button onClick={() => navigate(-1)} className="p-2 rounded-xl hover:bg-white/5 text-campus-muted hover:text-white">
-                        <X size={20} />
+        <div className="h-full bg-campus-darker flex flex-col overflow-hidden relative">
+            {/* Background Architecture */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-500/5 via-transparent to-transparent pointer-events-none" />
+
+            {/* Header */}
+            <header className="px-8 py-10 flex items-center justify-between border-b border-white/[0.03] bg-campus-dark/40 backdrop-blur-3xl z-20 shadow-elevation-1">
+                <div className="flex items-center gap-6">
+                    <button onClick={() => navigate(-1)} className="p-4 bg-white/5 hover:bg-white/10 rounded-3xl transition-all border border-white/5 active:scale-90">
+                        <ChevronLeft size={28} strokeWidth={3} className="text-white" />
+                    </button>
+                    <div>
+                        <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white leading-none">Status Hub</h1>
+                        <p className="text-[10px] font-black text-brand-400 uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
+                            <Lock size={10} /> End-to-End Encrypted
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <button onClick={() => setShowPrivacy(true)} className="p-4 bg-brand-500/10 hover:bg-brand-500/20 rounded-3xl text-brand-400 transition-all border border-brand-500/20 active:scale-95 shadow-glow-brand/20">
+                        <Shield size={24} strokeWidth={2.5} />
                     </button>
                 </div>
+            </header>
 
-                <div className="space-y-6">
-                    <div className="bg-campus-card rounded-2xl p-6 border border-campus-border shadow-card">
-                        <h3 className="text-sm font-bold text-campus-muted uppercase tracking-wider mb-4">My Status</h3>
-                        <button
-                            onClick={handleAddStatus}
-                            className="w-full flex items-center gap-4 p-4 rounded-xl bg-campus-darker/50 border border-dashed border-campus-border hover:border-brand-500/50 hover:bg-brand-500/5 transition-all"
-                        >
-                            <div className="w-14 h-14 rounded-full bg-brand-500/20 flex items-center justify-center shrink-0">
-                                <Plus size={24} className="text-brand-400" />
+            <main className="flex-1 overflow-y-auto px-8 py-12 custom-scrollbar scroll-smooth relative z-10">
+                {/* My Status Section */}
+                <div className="mb-14 max-w-2xl">
+                    <h3 className="text-[10px] font-black text-campus-muted uppercase tracking-[0.4em] mb-8 px-4 flex items-center gap-4 italic">
+                        <ScanLine size={16} className="text-brand-500" /> Identity Broadcast
+                    </h3>
+                    <div
+                        onClick={() => setShowCamera(true)}
+                        className="flex items-center gap-8 p-10 glass-card bg-white/[0.01] hover:bg-brand-500/5 border border-white/5 hover:border-brand-500/30 transition-all duration-500 cursor-pointer group rounded-[56px] relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                            <Camera size={80} />
+                        </div>
+                        <div className="relative">
+                            <div className="w-24 h-24 rounded-[36px] bg-gradient-to-tr from-brand-500 via-indigo-500 to-purple-600 p-[3px] shadow-glow-brand">
+                                <div className="w-full h-full rounded-[33px] bg-campus-dark flex items-center justify-center border-4 border-campus-dark overflow-hidden">
+                                    {(user?.profile as any)?.avatar_url ? (
+                                        <img src={(user?.profile as any).avatar_url} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-4xl font-black text-white italic uppercase">{(user?.profile as any)?.display_name?.charAt(0)}</span>
+                                    )}
+                                </div>
                             </div>
-                            <div className="text-left">
-                                <p className="font-bold text-white">Add to my status</p>
-                                <p className="text-xs text-campus-muted">Share an update with your contacts</p>
+                            <div className="absolute -bottom-2 -right-2 p-3 bg-brand-500 rounded-2xl text-white border-4 border-campus-dark group-hover:rotate-90 transition-transform shadow-2xl">
+                                <Plus size={20} strokeWidth={4} />
                             </div>
-                        </button>
-                        {myStatus && (
-                            <div className="mt-4 p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-between">
-                                <p className="text-brand-300 font-medium">{myStatus}</p>
-                                <button onClick={() => saveStatus('')} className="text-xs text-red-400 hover:text-red-300">Clear</button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bg-campus-card rounded-2xl p-6 border border-campus-border shadow-card">
-                        <h3 className="text-sm font-bold text-campus-muted uppercase tracking-wider mb-4">Recent Updates</h3>
-                        {statusUpdates.length === 0 ? (
-                            <p className="text-campus-muted text-sm py-6 text-center">No status updates from contacts yet.</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {statusUpdates.map(({ profile }) => (
-                                    <div
-                                        key={profile.id}
-                                        onClick={() => navigate('/app/chats')}
-                                        className="flex items-center gap-4 p-4 rounded-xl hover:bg-white/[0.04] cursor-pointer transition-all"
-                                    >
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center overflow-hidden shrink-0">
-                                            {profile.avatar_url ? (
-                                                <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <span className="text-white font-bold">{profile.display_name?.charAt(0) || '?'}</span>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-white truncate">{profile.display_name}</p>
-                                            <p className="text-xs text-campus-muted truncate">{profile.activity_status || 'No status'}</p>
-                                        </div>
-                                        <Eye size={18} className="text-campus-muted shrink-0" />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        </div>
+                        <div className="relative z-10">
+                            <p className="text-2xl font-black text-white italic uppercase tracking-tight group-hover:text-brand-400 transition-colors">Capture Moment</p>
+                            <p className="text-[11px] font-black text-campus-muted uppercase tracking-[0.2em] opacity-60 mt-2">Visibility: Your Connections Only</p>
+                        </div>
                     </div>
                 </div>
 
-                {showAddStatus && (
-                    <AddStatusModal
-                        onClose={() => setShowAddStatus(false)}
-                        onSave={saveStatus}
-                        currentStatus={myStatus || ''}
-                        uploadFile={uploadFile}
+                {/* Friends Updates */}
+                <div className="max-w-2xl">
+                    <h3 className="text-[10px] font-black text-campus-muted uppercase tracking-[0.4em] mb-8 px-4 flex items-center gap-4 italic font-black">
+                        <Sparkles size={16} className="text-purple-400" /> Recent Movements
+                    </h3>
+
+                    {loading ? (
+                        <div className="space-y-6">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="h-32 w-full bg-white/[0.02] border border-white/5 rounded-[56px] animate-pulse" />
+                            ))}
+                        </div>
+                    ) : Object.keys(statuses).length === 0 ? (
+                        <div className="text-center py-32 bg-white/[0.01] border border-white/5 rounded-[64px] border-dashed">
+                            <Eye size={48} className="mx-auto mb-6 text-white/10" />
+                            <p className="font-black italic uppercase tracking-widest text-campus-muted text-sm px-10">Static environment detected. Invite connections to broadcast updates.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {Object.entries(statuses).map(([uid, userStories]) => (
+                                <motion.div
+                                    key={uid}
+                                    initial={{ x: -20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    onClick={() => setViewingUser(uid)}
+                                    className="flex items-center gap-8 p-8 glass-card bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 hover:border-brand-500/20 transition-all duration-500 cursor-pointer group rounded-[56px]"
+                                >
+                                    <div className="w-20 h-20 rounded-[32px] bg-gradient-to-tr from-brand-500 via-indigo-600 to-purple-600 p-[3px] shadow-glow-sm transition-transform duration-500 group-hover:rotate-6">
+                                        <div className="w-full h-full rounded-[29px] bg-campus-dark border-4 border-campus-dark flex items-center justify-center overflow-hidden">
+                                            {userStories[0].user?.avatar_url ? (
+                                                <img src={userStories[0].user.avatar_url} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="text-3xl font-black text-brand-400 italic uppercase">{userStories[0].user?.display_name?.charAt(0)}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-xl font-black text-white italic uppercase tracking-tight group-hover:text-brand-400 transition-colors">{userStories[0].user?.display_name || 'STUDENT'}</p>
+                                            <div className="w-2 h-2 rounded-full bg-brand-500 shadow-glow-brand" />
+                                        </div>
+                                        <p className="text-[10px] font-black text-campus-muted uppercase tracking-widest opacity-60 mt-1">
+                                            {userStories.length} updates • {new Date(userStories[userStories.length - 1].created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                    <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-brand-500 text-white transition-all transform group-hover:translate-x-1">
+                                        <ChevronLeft className="rotate-180" size={20} strokeWidth={3} />
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </main>
+
+            {/* Floating Action Buttons */}
+            <div className="fixed bottom-12 right-12 flex flex-col gap-6 z-30">
+                <button
+                    onClick={async () => {
+                        const content = prompt("Mesh broadcast (text):");
+                        if (content && content.trim()) {
+                            try {
+                                const campusId = (user?.profile as any)?.campus_id || '00000000-0000-0000-0000-000000000000';
+                                await StatusService.postText(user!.id, campusId, content);
+                                showToast('Broadcast stabilized!', 'success');
+                                window.location.reload(); // Quick refresh to show status
+                            } catch (err) {
+                                showToast('Transmission failed.', 'error');
+                            }
+                        }
+                    }}
+                    className="p-6 bg-white/5 backdrop-blur-3xl text-white rounded-[32px] border border-white/10 hover:bg-white/10 shadow-2xl transition-all active:scale-90"
+                >
+                    <Palette size={28} strokeWidth={2.5} />
+                </button>
+                <button
+                    onClick={() => setShowCamera(true)}
+                    className="p-10 bg-brand-500 text-white rounded-[40px] shadow-glow-brand transition-all hover:bg-brand-600 active:scale-95 group"
+                >
+                    <Camera size={40} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                </button>
+            </div>
+
+            {/* Modals */}
+            <AnimatePresence>
+                {viewingUser && statuses[viewingUser] && (
+                    <StoryViewer
+                        stories={statuses[viewingUser]}
+                        currentUser={{ id: user?.id, ...user?.profile } as UserProfile}
+                        onClose={() => {
+                            setViewingUser(null);
+                            navigate('/app/status', { replace: true });
+                        }}
+                        onNextUser={handleNextUser}
+                        onPrevUser={handlePrevUser}
                     />
                 )}
-            </div>
+                {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
+
+                {showCamera && !capturedFile && (
+                    <StoryCamera
+                        onClose={() => setShowCamera(false)}
+                        onCapture={(file, type) => setCapturedFile({ file, type })}
+                    />
+                )}
+
+                {capturedFile && user && (
+                    <StoryEditor
+                        file={capturedFile.file}
+                        mediaType={capturedFile.type}
+                        currentUser={{ id: user.id, ...user.profile } as UserProfile}
+                        onClose={() => {
+                            setCapturedFile(null);
+                            setShowCamera(false);
+                        }}
+                        onPost={() => {
+                            showToast('Status Uploaded!', 'success');
+                            setCapturedFile(null);
+                            setShowCamera(false);
+                        }}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }
 
-function AddStatusModal({ onClose, onSave, currentStatus, uploadFile }: { onClose: () => void; onSave: (t: string, type: StatusType, mediaUrl?: string, visibility?: 'followers' | 'individual', visibleTo?: string[]) => void; currentStatus: string; uploadFile: (f: File, bucket?: string) => Promise<string | null> }) {
-    const [text, setText] = useState(currentStatus);
-    const [type, setType] = useState<StatusType>('thought');
-    const [visibility, setVisibility] = useState<'followers' | 'individual'>('followers');
-    const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-    const [mediaFile, setMediaFile] = useState<File | null>(null);
-    const fileRef = useRef<HTMLInputElement>(null);
-
-    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        setMediaFile(f);
-        const url = URL.createObjectURL(f);
-        setMediaPreview(url);
-    };
-
-    const handleSave = async () => {
-        let url: string | undefined;
-        if (mediaFile && (type === 'photo' || type === 'video' || type === 'audio')) {
-            url = (await uploadFile(mediaFile, 'status-media')) || undefined;
-        }
-        onSave(text || (url ? 'Media' : ''), type, url, visibility, []);
-    };
-
-    const types: { id: StatusType; label: string; icon: typeof Lightbulb }[] = [
-        { id: 'thought', label: 'Thought', icon: Lightbulb },
-        { id: 'note', label: 'Note', icon: FileText },
-        { id: 'photo', label: 'Photo', icon: Image },
-        { id: 'video', label: 'Video', icon: Video },
-        { id: 'audio', label: 'Audio', icon: Music },
-    ];
-
+function PrivacyModal({ onClose }: { onClose: () => void }) {
     return (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
-            <div className="glass-card p-6 w-full max-w-lg animate-scale-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-white">Add Status</h2>
-                    <button onClick={onClose} className="text-campus-muted hover:text-white"><X size={20} /></button>
-                </div>
-
-                <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-                    {types.map(t => (
-                        <button key={t.id} onClick={() => { setType(t.id); setMediaFile(null); setMediaPreview(null); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${type === t.id ? 'bg-brand-500/20 text-brand-400 border border-brand-500/40' : 'bg-white/5 text-campus-muted hover:text-white border border-transparent'}`}>
-                            <t.icon size={18} />
-                            {t.label}
+        <div className="fixed inset-0 z-[2000] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6" onClick={onClose}>
+            <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} className="w-full max-w-sm p-12 bg-campus-dark border border-white/10 rounded-[64px] shadow-glow-brand/20" onClick={e => e.stopPropagation()}>
+                <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white mb-10 flex items-center gap-4"><Shield className="text-brand-400" /> Security</h2>
+                <div className="space-y-4">
+                    {['My Connections Only', 'Specific Groups', 'Private Mode'].map(opt => (
+                        <button key={opt} className="w-full p-8 text-left bg-white/[0.02] hover:bg-brand-500/10 border border-white/5 hover:border-brand-500/30 rounded-[32px] transition-all flex items-center justify-between group">
+                            <span className="font-black uppercase tracking-widest text-xs text-white group-hover:text-brand-400">{opt}</span>
+                            <div className="w-6 h-6 rounded-lg border-2 border-white/20 group-hover:border-brand-500 group-hover:bg-brand-500/20" />
                         </button>
                     ))}
                 </div>
-
-                <input type="file" ref={fileRef} className="hidden" accept={type === 'photo' ? 'image/*' : type === 'video' ? 'video/*' : type === 'audio' ? 'audio/*' : '*'} onChange={handleFile} />
-
-                {(type === 'photo' || type === 'video' || type === 'audio') && (
-                    <div className="mb-4">
-                        <button onClick={() => fileRef.current?.click()} className="w-full py-6 rounded-xl border-2 border-dashed border-campus-border hover:border-brand-500/50 bg-white/5 hover:bg-brand-500/5 transition-all text-campus-muted hover:text-brand-400 flex flex-col items-center gap-2">
-                            {mediaPreview ? (type === 'photo' ? <img src={mediaPreview} className="max-h-40 rounded-lg object-cover" alt="" /> : type === 'video' ? <video src={mediaPreview} className="max-h-40 rounded-lg" controls /> : <audio src={mediaPreview} controls />) : <><Image size={32} /> Choose {type}</>}
-                        </button>
-                    </div>
-                )}
-
-                <textarea value={text} onChange={e => setText(e.target.value)} placeholder={type === 'thought' ? "What's on your mind?" : type === 'note' ? "Add a note..." : `Add caption for ${type}...`} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-campus-muted outline-none focus:border-brand-500 min-h-[80px] resize-none mb-4" rows={2} />
-
-                <div className="mb-4">
-                    <p className="text-[10px] font-bold text-campus-muted uppercase tracking-wider mb-2">Who can see</p>
-                    <div className="flex gap-2">
-                        <button onClick={() => setVisibility('followers')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold ${visibility === 'followers' ? 'bg-brand-500/20 text-brand-400 border border-brand-500/40' : 'bg-white/5 text-campus-muted border border-transparent'}`}><Users size={16} /> Followers</button>
-                        <button onClick={() => setVisibility('individual')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold ${visibility === 'individual' ? 'bg-brand-500/20 text-brand-400 border border-brand-500/40' : 'bg-white/5 text-campus-muted border border-transparent'}`}><UserCheck size={16} /> Select</button>
-                    </div>
-                    {visibility === 'individual' && <p className="text-xs text-campus-muted mt-2">You can choose specific contacts when sharing.</p>}
-                </div>
-
-                <div className="flex gap-3">
-                    <button onClick={handleSave} className="flex-1 btn-primary py-3 rounded-xl font-bold">Post Status</button>
-                    <button onClick={onClose} className="px-6 py-3 rounded-xl bg-white/5 text-campus-muted hover:text-white">Cancel</button>
-                </div>
-            </div>
+                <button onClick={onClose} className="w-full mt-10 py-6 bg-white/5 border border-white/5 rounded-[32px] text-white font-black uppercase tracking-widest text-[10px] italic">Close Protocol</button>
+            </motion.div>
         </div>
     );
 }

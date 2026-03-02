@@ -7,18 +7,39 @@
 
 import { insforge } from '../lib/insforge';
 
-const CATEGORIES = ['general', 'hostel', 'event', 'question', 'lost_found', 'marketplace', 'announcement'] as const;
-const STUDY_LINES = ['Anyone have notes for DS midterm?', 'Best resources for DBMS?', 'PYQ ka answer key milega?', 'Group study tomorrow 4pm library?'];
-const HOSTEL_LINES = ['Mess food today was something else 😭', 'Power cut at 2am vibes', 'Who wants to order from outside?', 'Quiet hours please 🛑'];
-const EVENT_LINES = ['Tech fest registration is open!', 'Cultural night this Saturday', 'Hackathon registrations closing soon', 'Sports day next week'];
-const MEME_LINES = ['When prof says open book but...', 'That moment before results', 'Semester end mood', 'Placement season in a nutshell'];
-const LOST_LINES = ['Lost keys near block A', 'Found a wallet near canteen', 'Anyone saw a blue bag?', 'Lost calculator in lab 3'];
-const INTERNSHIP_LINES = ['Summer intern hunt 2026', 'Referral for company Y?', 'Internship vs placement prep', 'Remote internship experiences?'];
-const FACULTY_LINES = ['Sir ne assignment extend kiya', 'Best faculty for ML?', 'Office hours kab hain?', 'Attendance leniency?'];
+const CATEGORIES = [
+    'general',
+    'hostel',
+    'event',
+    'question',
+    'lost_found',
+    'marketplace',
+    'announcement',
+    'anonymous'
+] as const;
 
-function pick<T>(arr: readonly T[]): T {
-    return arr[Math.floor(Math.random() * arr.length)];
-}
+const DEMO_POSTS = [
+    { category: 'event', title: 'TechFest 2026 Registrations Open!', content: 'Registrations for TechFest are now live. Robotics, Hackathon, Gaming tournaments included. Early bird discount till Friday.' },
+    { category: 'hostel', title: 'Mess Food Review – Block C', content: 'Aaj ka paneer thoda rubber jaisa tha 😭 Anyone else facing same issue?' },
+    { category: 'question', title: 'Best way to prepare for DSA before placements?', content: '6 months left. Should I focus on LeetCode or CodeStudio?' },
+    { category: 'anonymous', title: 'Confession', content: 'I think I chose the wrong branch. Anyone else feeling lost?' },
+    { category: 'marketplace', title: 'Selling Scientific Calculator', content: 'Casio FX-991ES Plus, barely used. ₹900.' },
+    { category: 'lost_found', title: 'Lost Wallet near Library', content: 'Brown leather wallet. ID inside. Please DM if found.' },
+    { category: 'announcement', title: 'Mid Semester Exams Schedule Released', content: 'Timetable uploaded on ERP portal.' },
+    { category: 'general', title: 'Anyone up for badminton tonight?', content: '7PM, Sports complex.' },
+    { category: 'event', title: 'Cultural Night Auditions Tomorrow', content: 'Dance, singing, stand-up entries open.' },
+    { category: 'hostel', title: 'WiFi Down Again?', content: 'Block A internet not working since morning.' },
+    { category: 'question', title: 'OS viva tips?', content: 'External examiner strict hai kya?' },
+    { category: 'marketplace', title: 'Looking for Roommate', content: '2BHK near campus. Sharing basis.' },
+    { category: 'anonymous', title: 'Placement Anxiety', content: 'Everyone seems ahead. Feeling pressured.' },
+    { category: 'general', title: 'Sunrise from Admin Block', content: 'Today’s view was unreal 🌄' },
+    { category: 'announcement', title: 'Library Timing Extended', content: 'Now open till 12 AM during exams.' },
+    { category: 'event', title: 'Hackathon Teams Forming', content: 'Need frontend dev. DM fast.' },
+    { category: 'question', title: 'Machine Learning Resources?', content: 'Any good free course suggestions?' },
+    { category: 'lost_found', title: 'Found AirPods in Canteen', content: 'Tell case color to claim.' },
+    { category: 'hostel', title: 'Power Cut Alert', content: 'Maintenance tonight 11PM–1AM.' },
+    { category: 'general', title: 'Freshers Meetup?', content: 'Let’s plan unofficial intro meet.' },
+];
 
 function randInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -30,59 +51,76 @@ function daysAgo(days: number): string {
     return d.toISOString();
 }
 
-function generatePost(campusId: string, authorId: string, category: (typeof CATEGORIES)[number]): Record<string, unknown> {
-    const isAnonymous = Math.random() > 0.6;
-    let content = '';
-    switch (category) {
-        case 'general': content = pick(STUDY_LINES); break;
-        case 'hostel': content = pick(HOSTEL_LINES); break;
-        case 'event': content = pick(EVENT_LINES); break;
-        case 'question': content = pick(STUDY_LINES); break;
-        case 'lost_found': content = pick(LOST_LINES); break;
-        case 'marketplace': content = pick(INTERNSHIP_LINES); break;
-        case 'announcement': content = pick(FACULTY_LINES); break;
-        default: content = pick(STUDY_LINES);
-    }
-    if (Math.random() > 0.7) content = pick(MEME_LINES);
-    return {
-        author_id: authorId,
+export async function seedDemoPosts(campusId: string, authorId: string): Promise<{ ok: number; err: number }> {
+    let ok = 0;
+    let err = 0;
+
+    // Check if already seeded to avoid duplicates
+    try {
+        const { count } = await insforge.database
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('campus_id', campusId)
+            .ilike('content', '%TechFest 2026%');
+
+        if (count && count > 0) return { ok: 0, err: 0 };
+    } catch (e) { }
+
+    const postsToInsert = DEMO_POSTS.map(post => ({
+        user_id: authorId,
         campus_id: campusId,
-        category,
-        content,
-        media_urls: [],
-        is_anonymous: isAnonymous,
-        is_pinned: false,
-        is_hidden: false,
-        upvotes: randInt(2, 50),
-        downvotes: randInt(0, 5),
-        comment_count: randInt(2, 5),
-        report_count: 0,
-        created_at: daysAgo(randInt(0, 30)),
-    };
+        category: post.category,
+        content: `**${post.title}**\n${post.content}`,
+        media_url: null,
+        is_anonymous: post.category === 'anonymous',
+        likes_count: randInt(5, 120),
+        dislikes_count: randInt(0, 5),
+        comments_count: randInt(0, 25),
+        created_at: daysAgo(randInt(0, 7)),
+    }));
+
+    try {
+        const { error } = await insforge.database.from('posts').insert(postsToInsert);
+        if (!error) {
+            ok = postsToInsert.length;
+        } else {
+            err = postsToInsert.length;
+        }
+    } catch {
+        err = postsToInsert.length;
+    }
+
+    return { ok, err };
 }
 
+// Keep the old one if needed but update it to use the new categories
 export async function seedCampusFeed(campusId: string, authorId: string, count = 100): Promise<{ ok: number; err: number }> {
     let ok = 0;
     let err = 0;
     const batchSize = 20;
 
     for (let i = 0; i < count; i += batchSize) {
-        const batch: Record<string, unknown>[] = [];
+        const batch: any[] = [];
         for (let j = 0; j < batchSize && i + j < count; j++) {
-            const cat = pick([...CATEGORIES]);
-            batch.push(generatePost(campusId, authorId, cat));
+            const cat = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
+            const isAnonymous = cat === 'anonymous' || Math.random() > 0.8;
+            batch.push({
+                author_id: authorId,
+                campus_id: campusId,
+                category: cat,
+                content: `Random post content for ${cat} section ${i + j}`,
+                media_urls: [],
+                is_anonymous: isAnonymous,
+                upvotes: randInt(2, 50),
+                downvotes: randInt(0, 5),
+                comment_count: randInt(2, 5),
+                created_at: daysAgo(randInt(0, 30)),
+            });
         }
         try {
             const { error } = await insforge.database.from('posts').insert(batch);
-            if (error) {
-                err += batch.length;
-            } else {
-                ok += batch.length;
-            }
-        } catch {
-            err += batch.length;
-        }
+            if (!error) ok += batch.length; else err += batch.length;
+        } catch { err += batch.length; }
     }
-
     return { ok, err };
 }

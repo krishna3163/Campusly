@@ -53,11 +53,11 @@ export class RankingEngine {
         rs += commonInterests.length * 10;
 
         // 2. Relationship Score (Simplified for demo)
-        if (post.author_id === user.id) rls += 50;
+        if (post.user_id === user.id) rls += 50;
         // In real app, we would check follow status/friend status
 
         // 3. Engagement Momentum
-        const rawEngagement = (post.upvotes * 3) + (post.comment_count * 5);
+        const rawEngagement = (post.likes_count * 3) + (post.comments_count * 5);
         const hoursSince = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
         ems = rawEngagement * Math.exp(-0.1 * hoursSince);
 
@@ -164,20 +164,35 @@ export class RankingEngine {
      * SECTION 6: GROUP PRIORITY
      */
     static rankGroups(groups: Conversation[]): Conversation[] {
-        return groups
+        return [...groups]
             .map(group => {
-                let score = (group.unread_count || 0) * 5;
-
-                if (group.type === 'subject_channel') score += 20;
-                if (group.is_important) score += 30; // Assuming boolean field
+                let score = 0;
 
                 // Interaction frequency (proxy using updated_at)
                 const hoursSinceUpdate = (Date.now() - new Date(group.updated_at).getTime()) / (1000 * 60 * 60);
-                score += Math.max(0, 20 - (hoursSinceUpdate / 2));
+                score += Math.max(0, 100 - (hoursSinceUpdate * 2));
+
+                // Unread messages boost
+                score += (group.unread_count || 0) * 10;
+
+                if (group.is_important) score += 50;
 
                 return { ...group, groupScore: score };
             })
-            .sort((a: any, b: any) => b.groupScore - a.groupScore);
+            .sort((a: any, b: any) => {
+                // Pin Sorting Rules:
+                // 1. Pinned private chats first
+                // 2. Pinned groups second
+                // 3. Score-based ranking third (by latest message activity)
+
+                if (a.is_pinned_private && !b.is_pinned_private) return -1;
+                if (!a.is_pinned_private && b.is_pinned_private) return 1;
+
+                if (a.is_pinned_group && !b.is_pinned_group) return -1;
+                if (!a.is_pinned_group && b.is_pinned_group) return 1;
+
+                return b.groupScore - a.groupScore;
+            });
     }
 
     /**
@@ -191,7 +206,7 @@ export class RankingEngine {
             const words = post.content.toLowerCase().split(/\W+/);
             words.forEach(word => {
                 if (word.length > 3 && !stopWords.has(word)) {
-                    keywords[word] = (keywords[word] || 0) + 1 + (post.upvotes * 0.5);
+                    keywords[word] = (keywords[word] || 0) + 1 + (post.likes_count * 0.5);
                 }
             });
         });

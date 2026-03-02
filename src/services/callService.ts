@@ -1,249 +1,186 @@
 // ===================================================================
-// Campusly v3.0 — Call Signaling Service
-// WebRTC call management with InsForge Realtime for signaling.
-// Supports: 1-1 voice, 1-1 video, group voice, group video.
+// Campusly v4.0 — Audio & Video Calling System
+// WebRTC implementation with InsForge Realtime signaling.
 // ===================================================================
 
 import { insforge } from '../lib/insforge';
-import type { Call, CallType, CallParticipant } from '../types/messaging';
 
-// Default ICE servers (STUN + TURN)
-const ICE_SERVERS: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // TURN server should be configured in production
-    // { urls: 'turn:turn.campusly.app:3478', username: '...', credential: '...' },
-];
+export interface CallRecord {
+    id: string;
+    caller_id: string;
+    receiver_id: string;
+    status: 'ringing' | 'accepted' | 'rejected' | 'ended';
+    type: 'audio' | 'video';
+    started_at?: string;
+    ended_at?: string;
+    created_at: string;
+}
 
-/**
- * Initiate a new call.
- */
-export async function initiateCall(
-    conversationId: string,
-    userId: string,
-    type: CallType
-): Promise<Call | null> {
-    const { data, error } = await insforge.database
-        .from('calls')
-        .insert({
-            conversation_id: conversationId,
-            type,
-            status: 'ringing',
-            initiated_by: userId,
-            ice_servers: ICE_SERVERS,
-        })
-        .select()
-        .single();
+const SIGNAL_CHANNEL = "call-signaling";
 
-    if (error || !data) {
-        console.error('Failed to initiate call:', error);
-        return null;
-    }
+class CallService {
+    private peerConnection: RTCPeerConnection | null = null;
+    private localStream: MediaStream | null = null;
+    private remoteStream: MediaStream | null = null;
 
-    // Add initiator as first participant
-    await insforge.database
-        .from('call_participants')
-        .insert({
-            call_id: data.id,
-            user_id: userId,
+    private config: RTCConfiguration = {
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" }
+        ]
+    };
+
+    /**
+     * Initialize media and peer connection
+     */
+    async initPeer(isVideo: boolean, onRemoteStream: (stream: MediaStream) => void): Promise<MediaStream> {
+        this.peerConnection = new RTCPeerConnection(this.config);
+
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+            video: isVideo ? { facingMode: 'user' } : false,
+            audio: true
         });
 
-    return data as Call;
-}
+        this.remoteStream = new MediaStream();
 
-/**
- * Accept an incoming call.
- */
-export async function acceptCall(callId: string, userId: string): Promise<boolean> {
-    const { error } = await insforge.database
-        .from('calls')
-        .update({ status: 'active', started_at: new Date().toISOString() })
-        .eq('id', callId);
-
-    if (error) return false;
-
-    await insforge.database
-        .from('call_participants')
-        .insert({ call_id: callId, user_id: userId });
-
-    return true;
-}
-
-/**
- * Decline or end a call.
- */
-export async function endCall(callId: string, status: 'ended' | 'declined' | 'missed' = 'ended'): Promise<void> {
-    await insforge.database
-        .from('calls')
-        .update({
-            status,
-            ended_at: new Date().toISOString(),
-        })
-        .eq('id', callId);
-}
-
-/**
- * Toggle participant media state.
- */
-export async function toggleParticipantState(
-    callId: string,
-    userId: string,
-    field: 'is_muted' | 'is_camera_off' | 'is_screen_sharing',
-    value: boolean
-): Promise<void> {
-    await insforge.database
-        .from('call_participants')
-        .update({ [field]: value })
-        .eq('call_id', callId)
-        .eq('user_id', userId);
-}
-
-/**
- * Leave a call (for group calls where the call continues).
- */
-export async function leaveCall(callId: string, userId: string): Promise<void> {
-    await insforge.database
-        .from('call_participants')
-        .update({ left_at: new Date().toISOString() })
-        .eq('call_id', callId)
-        .eq('user_id', userId);
-}
-
-/**
- * Get call history for a conversation.
- */
-export async function getCallHistory(conversationId: string, limit = 20): Promise<Call[]> {
-    const { data } = await insforge.database
-        .from('calls')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-    return (data as Call[]) || [];
-}
-
-/**
- * Subscribe to call events for a conversation.
- */
-export function subscribeToCallEvents(
-    conversationId: string,
-    onCallEvent: (call: Call, eventType: 'INSERT' | 'UPDATE') => void
-): () => void {
-    const channelName = `conversations:${conversationId}`;
-
-    if (!insforge.realtime.isConnected) {
-        insforge.realtime.connect();
-    }
-
-    insforge.realtime.subscribe(channelName);
-
-    const handler = (payload: any) => {
-        if (payload.meta?.channel === channelName) {
-            onCallEvent(payload as Call, payload.action === 'INSERT' ? 'INSERT' : 'UPDATE');
-        }
-    };
-
-    insforge.realtime.on('call_change', handler);
-
-    return () => {
-        insforge.realtime.unsubscribe(channelName);
-        insforge.realtime.off('call_change', handler);
-    };
-}
-
-/**
- * Subscribe to participant changes in an active call.
- */
-export function subscribeToParticipants(
-    callId: string,
-    onParticipantChange: (participant: CallParticipant, eventType: string) => void
-): () => void {
-    // This requires a separate trigger/channel for participants if needed,
-    // but for now, we'll use the same conversation channel or a dedicated one.
-    const channelName = `call_participants:${callId}`;
-
-    if (!insforge.realtime.isConnected) {
-        insforge.realtime.connect();
-    }
-
-    insforge.realtime.subscribe(channelName);
-
-    const handler = (payload: any) => {
-        if (payload.meta?.channel === channelName) {
-            onParticipantChange(payload as CallParticipant, payload.action);
-        }
-    };
-
-    insforge.realtime.on('participant_change', handler);
-
-    return () => {
-        insforge.realtime.unsubscribe(channelName);
-        insforge.realtime.off('participant_change', handler);
-    };
-}
-
-/**
- * Create a WebRTC peer connection with standard configuration.
- */
-export function createPeerConnection(): RTCPeerConnection {
-    return new RTCPeerConnection({
-        iceServers: ICE_SERVERS,
-        iceCandidatePoolSize: 10,
-    });
-}
-
-/**
- * Send a signaling message (SDP offer/answer or ICE candidate) via Realtime.
- */
-export async function sendSignal(
-    conversationId: string,
-    signalType: 'offer' | 'answer' | 'ice-candidate',
-    data: any,
-    fromUserId: string,
-    toUserId?: string
-) {
-    const channelName = `signal:${conversationId}`;
-
-    await insforge.realtime.publish(channelName, signalType, {
-        from: fromUserId,
-        to: toUserId,
-        data,
-    });
-}
-
-/**
- * Listen for signaling messages.
- */
-export function listenForSignals(
-    conversationId: string,
-    userId: string,
-    onSignal: (signalType: string, data: any, fromUserId: string) => void
-): () => void {
-    const channelName = `signal:${conversationId}`;
-
-    if (!insforge.realtime.isConnected) {
-        insforge.realtime.connect();
-    }
-
-    insforge.realtime.subscribe(channelName);
-
-    const handler = (payload: any) => {
-        if (payload.meta?.channel === channelName) {
-            if (payload.to === userId || !payload.to) {
-                onSignal(payload.meta.event, payload.data, payload.from);
+        // Add local tracks to peer connection
+        this.localStream.getTracks().forEach(track => {
+            if (this.localStream && this.peerConnection) {
+                this.peerConnection.addTrack(track, this.localStream);
             }
+        });
+
+        // Handle remote tracks
+        this.peerConnection.ontrack = (event) => {
+            event.streams[0].getTracks().forEach(track => {
+                this.remoteStream?.addTrack(track);
+            });
+            onRemoteStream(this.remoteStream!);
+        };
+
+        return this.localStream;
+    }
+
+    /**
+     * Create Offer (Caller side)
+     */
+    async createOffer(receiverId: string): Promise<RTCSessionDescriptionInit> {
+        if (!this.peerConnection) throw new Error("Peer connection not initialized");
+
+        const offer = await this.peerConnection.createOffer();
+        await this.peerConnection.setLocalDescription(offer);
+
+        return offer;
+    }
+
+    /**
+     * Handle Offer and Create Answer (Receiver side)
+     */
+    async handleOffer(offer: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit> {
+        if (!this.peerConnection) throw new Error("Peer connection not initialized");
+
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+
+        return answer;
+    }
+
+    /**
+     * Handle Answer (Caller side)
+     */
+    async handleAnswer(answer: RTCSessionDescriptionInit) {
+        if (!this.peerConnection) return;
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    }
+
+    /**
+     * Handle ICE Candidates
+     */
+    setupIceCandidates(currentUserId: string, targetUserId: string, onCandidate: (candidate: RTCIceCandidate) => void) {
+        if (!this.peerConnection) return;
+
+        this.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                onCandidate(event.candidate);
+            }
+        };
+    }
+
+    async addIceCandidate(candidate: RTCIceCandidateInit) {
+        if (this.peerConnection) {
+            await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         }
-    };
+    }
 
-    insforge.realtime.on('offer', handler);
-    insforge.realtime.on('answer', handler);
-    insforge.realtime.on('ice-candidate', handler);
+    /**
+     * Signaling Wrappers
+     */
+    async sendSignal(event: string, to: string, data: any, from: string) {
+        await insforge.realtime.publish(SIGNAL_CHANNEL, event, {
+            to,
+            from,
+            data
+        });
+    }
 
-    return () => {
-        insforge.realtime.unsubscribe(channelName);
-        insforge.realtime.off('offer', handler);
-        insforge.realtime.off('answer', handler);
-        insforge.realtime.off('ice-candidate', handler);
-    };
+    subscribeSignals(userId: string, onSignal: (event: string, from: string, data: any) => void) {
+        insforge.realtime.subscribe(SIGNAL_CHANNEL);
+
+        const handler = (payload: any) => {
+            if (payload.to === userId) {
+                onSignal(payload.meta.event, payload.from, payload.data);
+            }
+        };
+
+        const events = ['call-request', 'call-accept', 'call-reject', 'offer', 'answer', 'ice-candidate', 'call-end'];
+        events.forEach(ev => insforge.realtime.on(ev, handler));
+
+        return () => {
+            events.forEach(ev => insforge.realtime.off(ev, handler));
+        };
+    }
+
+    /**
+     * Call State Management
+     */
+    async startCallRecord(callerId: string, receiverId: string, type: 'audio' | 'video'): Promise<CallRecord | null> {
+        const { data, error } = await insforge.database
+            .from('calls')
+            .insert({
+                caller_id: callerId,
+                receiver_id: receiverId,
+                type,
+                status: 'ringing'
+            })
+            .select()
+            .single();
+
+        return error ? null : data;
+    }
+
+    async updateCallStatus(callId: string, status: 'accepted' | 'rejected' | 'ended') {
+        const update: any = { status };
+        if (status === 'accepted') update.started_at = new Date().toISOString();
+        if (status === 'ended') update.ended_at = new Date().toISOString();
+
+        await insforge.database
+            .from('calls')
+            .update(update)
+            .eq('id', callId);
+    }
+
+    cleanup() {
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+        if (this.peerConnection) {
+            this.peerConnection.close();
+            this.peerConnection = null;
+        }
+        this.remoteStream = null;
+    }
 }
+
+export const callService = new CallService();
+export default callService;

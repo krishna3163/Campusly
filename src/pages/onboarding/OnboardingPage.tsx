@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@insforge/react';
 import { useNavigate } from 'react-router-dom';
 import { insforge } from '../../lib/insforge';
-import { gamificationService } from '../../services/gamificationService';
+import { GamificationService } from '../../services/gamificationService';
 import {
     GraduationCap,
     BookOpen,
@@ -48,7 +48,7 @@ export default function OnboardingPage() {
 
     useEffect(() => {
         if (user?.id) {
-            setReferralCode(gamificationService.generateReferralCode(user.id));
+            setReferralCode(GamificationService.generateReferralCode(user.id));
         }
     }, [user?.id]);
 
@@ -69,16 +69,17 @@ export default function OnboardingPage() {
         setSaving(true);
 
         try {
-            // Update profile with campus, branch, semester
+            // Upsert profile with campus, branch, semester (ensures row exists)
             await insforge.database
                 .from('profiles')
-                .update({
+                .upsert({
+                    id: user.id,
                     campus_id: selectedCampus,
                     branch: selectedBranch,
                     semester: selectedSemester,
                     referral_code: referralCode,
-                })
-                .eq('id', user.id);
+                    onboarding_completed: true
+                });
 
             // Auto-join semester group
             const groupName = `${selectedBranch} - Sem ${selectedSemester}`;
@@ -98,7 +99,7 @@ export default function OnboardingPage() {
             }
 
             // Award daily login XP
-            await gamificationService.awardXP(user.id, 'daily_login');
+            await GamificationService.awardXP(user.id, 'daily_login');
 
             setStep(3);
         } catch (err) {
@@ -155,10 +156,10 @@ export default function OnboardingPage() {
                         <div
                             key={s}
                             className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${s === step
-                                    ? 'bg-brand-600 text-white scale-110 shadow-glow'
-                                    : s < step
-                                        ? 'bg-emerald-500 text-white'
-                                        : 'bg-campus-card text-campus-muted border border-campus-border'
+                                ? 'bg-brand-600 text-white scale-110 shadow-glow'
+                                : s < step
+                                    ? 'bg-emerald-500 text-white'
+                                    : 'bg-campus-card text-campus-muted border border-campus-border'
                                 }`}
                         >
                             {s < step ? <Check size={16} /> : s}
@@ -225,8 +226,8 @@ export default function OnboardingPage() {
                                             key={b}
                                             onClick={() => setSelectedBranch(b)}
                                             className={`px-3 py-2 rounded-xl text-xs font-medium text-left transition-all ${selectedBranch === b
-                                                    ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
-                                                    : 'bg-campus-card/50 text-campus-muted border border-campus-border/30 hover:bg-campus-card'
+                                                ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                                                : 'bg-campus-card/50 text-campus-muted border border-campus-border/30 hover:bg-campus-card'
                                                 }`}
                                         >
                                             {b}
@@ -246,8 +247,8 @@ export default function OnboardingPage() {
                                             key={s}
                                             onClick={() => setSelectedSemester(s)}
                                             className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm transition-all ${selectedSemester === s
-                                                    ? 'bg-brand-600 text-white shadow-glow'
-                                                    : 'bg-campus-card text-campus-muted border border-campus-border hover:bg-campus-cardHover'
+                                                ? 'bg-brand-600 text-white shadow-glow'
+                                                : 'bg-campus-card text-campus-muted border border-campus-border hover:bg-campus-cardHover'
                                                 }`}
                                         >
                                             {s}

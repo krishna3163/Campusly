@@ -5,9 +5,29 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"San Francisco"', '"SF Pro Text"', '"Helvetica Neue"', 'sans-serif'],
       },
       colors: {
+        ios: {
+          blue: '#007AFF',
+          green: '#34C759',
+          red: '#FF3B30',
+          orange: '#FF9500',
+          yellow: '#FFCC00',
+          teal: '#5AC8FA',
+          purple: '#5856D6',
+          pink: '#FF2D55',
+          gray: '#8E8E93',
+          lightGray: '#E5E5EA',
+          lighterGray: '#F2F2F7',
+          background: '#FFFFFF',
+          separator: '#C6C6C8',
+          label: '#000000',
+          secondaryLabel: '#8E8E93',
+          tertiaryLabel: '#BCBCC0',
+          quaternaryLabel: '#E5E5EA',
+          systemFill: '#F2F2F7',
+        },
         brand: {
           50: '#f0f9ff',
           100: '#e0f2fe',

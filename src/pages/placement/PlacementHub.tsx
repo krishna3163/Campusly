@@ -4,9 +4,7 @@ import type { InterviewExperience } from '../../types';
 import {
     TrendingUp,
     Building2,
-    Users,
     ChevronRight,
-    Award,
     MessageSquare,
     Sparkles,
     Brain,
@@ -15,12 +13,17 @@ import {
     X,
     Briefcase,
     Plus,
+    MapPin,
+    DollarSign,
+    Filter,
+    Search as SearchIcon
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 import { resumeService, ResumeExtractedData } from '../../services/resumeService';
 import { useUser } from '@insforge/react';
 import JobListingForm from '../../components/placement/JobListingForm';
 import JobListingsSection from '../../components/placement/JobListingsSection';
+import { PlacementService, JobListing } from '../../services/PlacementService';
 
 export default function PlacementHub() {
     const { user } = useUser();
@@ -30,11 +33,30 @@ export default function PlacementHub() {
     const [selectedExp, setSelectedExp] = useState<InterviewExperience | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [extractedData, setExtractedData] = useState<ResumeExtractedData | null>(null);
+    const [smartJobs, setSmartJobs] = useState<JobListing[]>([]);
+    const [jobFilter, setJobFilter] = useState<'all' | 'internship' | 'full-time' | 'remote'>('all');
+    const [searchQuery, setSearchQuery] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         loadExperiences();
-    }, []);
+        if (user?.id) loadSmartJobs();
+    }, [user?.id, jobFilter]);
+
+    const loadSmartJobs = async () => {
+        const results = await PlacementService.getSmartJobs({
+            type: jobFilter === 'all' ? undefined : jobFilter,
+            skills: (user?.profile as any)?.skills || [],
+        });
+
+        // Apply client-side ranking
+        const ranked = results.map(j => ({
+            ...j,
+            match_score: PlacementService.calculateJobScore(j, user?.profile || {})
+        })).sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+
+        setSmartJobs(ranked);
+    };
 
     const loadExperiences = async () => {
         try {
@@ -88,12 +110,32 @@ export default function PlacementHub() {
                             <Plus size={18} strokeWidth={2} />
                             <span className="text-sm font-bold">Add Job</span>
                         </button>
+                        <button onClick={loadSmartJobs} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-brand-500/10 transition-all text-white border-brand-500/20">
+                            <Zap size={18} className="text-brand-400" />
+                            <span className="text-sm font-bold uppercase tracking-widest italic">Sync Jobs</span>
+                        </button>
                         <button onClick={() => window.open('https://linkedin.com/jobs', '_blank')} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-white/5 transition-all text-white">
-                            <Globe size={18} className="text-brand-400" />
+                            <Globe size={18} className="text-blue-500" />
                             <span className="text-sm font-bold">External Jobs</span>
                         </button>
                     </div>
                 </header>
+
+                <div className="flex flex-col md:flex-row gap-4 mb-10">
+                    <div className="flex-1 relative group">
+                        <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-campus-muted group-focus-within:text-brand-400 transition-colors" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search roles, companies, or tech stacks..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:border-brand-500/50 focus:bg-white/10 transition-all outline-none"
+                        />
+                    </div>
+                    <button className="px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-campus-muted hover:text-white transition-all flex items-center gap-3 text-sm font-bold active:scale-95">
+                        <Filter size={18} /> Advanced Filter
+                    </button>
+                </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <aside className="lg:col-span-4 space-y-6">
@@ -136,73 +178,72 @@ export default function PlacementHub() {
                     <main className="lg:col-span-8 space-y-8">
                         {activeSection === 'overview' ? (
                             <div className="space-y-10 animate-fade-in">
-                                {/* Cleaned Up Stats */}
-                                <div className="grid grid-cols-2 gap-4 md:gap-6">
-                                    <div className="bg-campus-card rounded-[16px] p-6 lg:p-8 border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <Award size={20} className="text-brand-400" />
-                                            <h4 className="text-xs font-bold text-campus-muted uppercase tracking-wider">Highest Package</h4>
-                                        </div>
-                                        <p className="text-4xl font-black text-white tracking-tight">45.5 <span className="text-sm text-campus-muted font-bold">LPA</span></p>
-                                    </div>
-                                    <div className="bg-campus-card rounded-[16px] p-6 lg:p-8 border border-campus-border shadow-card hover:-translate-y-1 transition-transform">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <Users size={20} className="text-purple-400" />
-                                            <h4 className="text-xs font-bold text-campus-muted uppercase tracking-wider">Placed Students</h4>
-                                        </div>
-                                        <p className="text-4xl font-black text-white tracking-tight">420<span className="text-brand-400">+</span></p>
-                                    </div>
-                                </div>
-
-                                {/* Top Companies Horizontal Scroll */}
+                                {/* Active Opportunities Grid (Section 1) */}
                                 <section>
-                                    <div className="flex items-center justify-between mb-6">
-                                        <h3 className="text-xl font-black text-white tracking-tight">Top Companies</h3>
-                                        <button className="text-sm font-bold text-brand-400 hover:text-brand-300 transition-colors">View All</button>
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                                        <h3 className="text-xl font-black text-white tracking-tight">Personalized Opportunities</h3>
+                                        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+                                            {['all', 'internship', 'full-time', 'remote'].map(f => (
+                                                <button
+                                                    key={f}
+                                                    onClick={() => setJobFilter(f as any)}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${jobFilter === f ? 'bg-brand-500 text-white shadow-glow' : 'bg-white/5 text-campus-muted hover:text-white'}`}
+                                                >
+                                                    {f}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4 snap-x">
-                                        {['Google', 'Microsoft', 'Amazon', 'Meta', 'Netflix', 'Apple'].map((company) => (
-                                            <div key={company} className="shrink-0 snap-start bg-campus-card border border-campus-border rounded-[20px] p-6 w-[160px] h-[160px] flex flex-col items-center justify-center gap-4 hover:border-brand-500/30 hover:bg-white/[0.02] hover:shadow-card-hover transition-all cursor-pointer group">
-                                                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                    <Building2 size={24} className="text-campus-muted group-hover:text-brand-400 transition-colors" />
-                                                </div>
-                                                <p className="font-bold text-sm text-center text-white/90">{company}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </section>
 
-                                {/* Active Opportunities Grid */}
-                                <section>
-                                    <div className="flex items-center justify-between mb-6">
-                                        <h3 className="text-xl font-black text-white tracking-tight">Active Opportunities</h3>
-                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                        {[1, 2, 3, 4].map(job => (
-                                            <div key={job} className="bg-campus-card border border-campus-border rounded-[16px] p-6 hover:shadow-card-hover hover:-translate-y-1 transition-all flex flex-col group">
-                                                <div className="flex justify-between items-start mb-6">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-[12px] bg-brand-500/10 flex items-center justify-center border border-brand-500/20 group-hover:bg-brand-500/20 transition-colors">
-                                                            <Building2 size={20} className="text-brand-400" />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-bold text-white tracking-tight leading-tight">Software Developer</h4>
-                                                            <p className="text-xs font-medium text-campus-muted mt-1">TechCorp Inc.</p>
-                                                        </div>
-                                                    </div>
-                                                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-full">New</span>
+                                        {smartJobs.length > 0 ? smartJobs.map(job => (
+                                            <div key={job.id} className="bg-campus-card border border-campus-border rounded-[24px] p-6 hover:border-brand-500/30 hover:shadow-card-hover transition-all flex flex-col group relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 px-4 py-1.5 bg-brand-500 text-white text-[10px] font-black italic rounded-bl-2xl shadow-glow">
+                                                    {job.match_score}% Match
                                                 </div>
-                                                <div className="flex items-center gap-4 mt-auto pt-5 border-t border-white/[0.04]">
-                                                    <div className="flex-1">
-                                                        <p className="text-[10px] text-campus-muted font-bold uppercase tracking-widest mb-1">Package</p>
-                                                        <p className="text-sm font-black text-white">12-15 LPA</p>
+
+                                                <div className="flex items-start gap-4 mb-6 pt-2">
+                                                    <div className="w-14 h-14 rounded-2xl bg-brand-500/10 flex items-center justify-center border border-brand-500/20 group-hover:scale-110 transition-transform">
+                                                        <Building2 size={24} className="text-brand-400" />
                                                     </div>
-                                                    <a href="https://www.linkedin.com/jobs/" target="_blank" rel="noopener noreferrer" className="btn-primary py-2.5 px-6 rounded-[12px] text-sm font-bold shadow-glow hover:scale-105 active:scale-95 transition-all inline-block text-center">
-                                                        Apply Now
+                                                    <div>
+                                                        <h4 className="font-bold text-lg text-white tracking-tight leading-tight">{job.title}</h4>
+                                                        <p className="text-sm font-medium text-campus-muted mt-1">{job.company}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                                    <div className="flex items-center gap-2 text-campus-muted">
+                                                        <MapPin size={14} className="text-brand-400" />
+                                                        <span className="text-[11px] font-bold uppercase">{job.location}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-campus-muted">
+                                                        <DollarSign size={14} className="text-emerald-400" />
+                                                        <span className="text-[11px] font-bold uppercase">{job.salary_range}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2 mb-8">
+                                                    {job.skills_required.slice(0, 3).map(s => (
+                                                        <span key={s} className="px-3 py-1 bg-white/5 border border-white/5 rounded-lg text-[9px] font-bold text-campus-muted uppercase">{s}</span>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-auto pt-6 border-t border-white/[0.04] flex items-center justify-between">
+                                                    <div className="text-[10px] text-campus-muted font-bold uppercase tracking-widest">
+                                                        Posted {new Date(job.posted_date).toLocaleDateString()}
+                                                    </div>
+                                                    <a href={job.apply_url} target="_blank" rel="noopener noreferrer" className="btn-primary py-3 px-8 rounded-2xl text-xs font-black uppercase tracking-widest shadow-glow hover:scale-105 active:scale-95 transition-all">
+                                                        Intelligence Apply
                                                     </a>
                                                 </div>
                                             </div>
-                                        ))}
+                                        )) : (
+                                            <div className="col-span-2 glass-card p-12 text-center">
+                                                <Briefcase size={48} className="mx-auto mb-4 text-campus-muted opacity-20" />
+                                                <p className="text-campus-muted font-bold tracking-tight">No personalized matches found.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </section>
                             </div>

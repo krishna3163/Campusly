@@ -4,8 +4,13 @@ import { Suspense, lazy, useEffect } from 'react';
 import LoadingScreen from './components/ui/LoadingScreen';
 import { syncService } from './services/syncService';
 import { realtimeService } from './services/realtimeService';
-import { initErrorReporting } from './services/errorReporter';
+import { ErrorLogger } from './services/ErrorLogger';
 import { useUserPersistence } from './hooks/useUserPersistence';
+import NotificationPrompt from './components/NotificationPrompt';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import CallManager from './components/CallManager';
+import ToastQueue from './components/ToastQueue';
+
 
 // Lazy load pages for code splitting
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
@@ -22,7 +27,11 @@ const CareerOverview = lazy(() => import('./pages/placement/CareerOverview'));
 const DeveloperPage = lazy(() => import('./pages/settings/DeveloperPage'));
 const BugReportPage = lazy(() => import('./pages/settings/BugReportPage'));
 const StatusPage = lazy(() => import('./pages/status/StatusPage'));
-const UserProfilePage = lazy(() => import('./pages/profile/UserProfilePage'));
+const ProfileViewPage = lazy(() => import('./pages/profile/ProfileViewPage'));
+const LeaderboardPage = lazy(() => import('./pages/leaderboard/LeaderboardPage'));
+const GroupSettingsPage = lazy(() => import('./pages/chat/GroupSettingsPage'));
+const ChatDiscoveryPage = lazy(() => import('./pages/chat/ChatDiscoveryPage'));
+const ErrorDashboard = lazy(() => import('./pages/admin/ErrorDashboard'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
@@ -42,14 +51,18 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+import { useGlobalNotifications } from './hooks/useGlobalNotifications';
+
+
 export default function App() {
   useUserPersistence();
+  useGlobalNotifications();
   // Start global services
   useEffect(() => {
     syncService.start(5000);
 
-    // Initialize global error auto-reporting
-    initErrorReporting();
+    // Initialize global error telemetry & monitoring
+    ErrorLogger.init();
 
     return () => {
       syncService.stop();
@@ -58,61 +71,73 @@ export default function App() {
   }, []);
 
   return (
-    <Suspense fallback={<LoadingScreen />}>
-      <Routes>
-        {/* Public Routes */}
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <LoginPage />
-            </PublicRoute>
-          }
-        />
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingScreen />}>
+        <ToastQueue />
+        <NotificationPrompt />
+        <CallManager />
+        <Routes>
 
-        {/* Onboarding */}
-        <Route
-          path="/onboarding"
-          element={
-            <ProtectedRoute>
-              <OnboardingPage />
-            </ProtectedRoute>
-          }
-        />
+          {/* Public Routes */}
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            }
+          />
 
-        {/* Protected Routes */}
-        <Route
-          path="/app"
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to="chats" replace />} />
-          <Route path="chats" element={<ChatLayout />}>
-            <Route index element={null} />
-            <Route path=":chatId" element={<ChatPage />} />
+          {/* Onboarding */}
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <OnboardingPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Routes */}
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="chats" replace />} />
+            <Route path="chats" element={<ChatLayout />}>
+              <Route index element={null} />
+              <Route path="discover" element={<ChatDiscoveryPage />} />
+              <Route path=":chatId" element={<ChatPage />} />
+              <Route path=":chatId/settings" element={<GroupSettingsPage />} />
+            </Route>
+            <Route path="feed" element={<CampusFeedPage />} />
+            <Route path="campus" element={<CampusFeedPage />} />
+            <Route path="study" element={<StudyDashboard />} />
+            <Route path="placement" element={<PlacementHub />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="profile/:userId" element={<ProfileViewPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="career-overview" element={<CareerOverview />} />
+            <Route path="status" element={<StatusPage />} />
+            <Route path="status/:viewUserId" element={<StatusPage />} />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
+
+            {/* Admin sub-routes */}
+            <Route path="admin/errors" element={<ErrorDashboard />} />
+
+            {/* Settings sub-routes */}
+            <Route path="settings/developer" element={<DeveloperPage />} />
+            <Route path="settings/bug-report" element={<BugReportPage />} />
           </Route>
-          <Route path="feed" element={<CampusFeedPage />} />
-          <Route path="campus" element={<CampusFeedPage />} />
-          <Route path="study" element={<StudyDashboard />} />
-          <Route path="placement" element={<PlacementHub />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="profile/:userId" element={<UserProfilePage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="career-overview" element={<CareerOverview />} />
-          <Route path="status" element={<StatusPage />} />
 
-          {/* Settings sub-routes */}
-          <Route path="settings/developer" element={<DeveloperPage />} />
-          <Route path="settings/bug-report" element={<BugReportPage />} />
-        </Route>
-
-        {/* Redirect */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
+          {/* Redirect */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
-
