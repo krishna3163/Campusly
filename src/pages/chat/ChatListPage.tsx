@@ -64,10 +64,10 @@ const ConversationItem = memo(({
     return (
         <button
             onClick={onClick}
-            className={`w-full flex items-center gap-3 px-4 py-3 transition-colors relative ios-card border-none ${isActive ? 'bg-[#E5E5EA]/50' : 'active:bg-[#F2F2F7]'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all relative border-none m-1 rounded-xl group ${isActive ? 'bg-[#007AFF15]' : 'hover:bg-[#F2F2F7] active:scale-[0.99]'}`}
         >
             <div className="relative shrink-0" onClick={onProfileClick}>
-                <div className="w-[52px] h-[52px] rounded-full overflow-hidden bg-[#F2F2F7] flex items-center justify-center border border-black/5">
+                <div className="w-[54px] h-[54px] rounded-full overflow-hidden bg-[#F2F2F7] flex items-center justify-center border border-black/5 shadow-sm">
                     {avatar ? (
                         <img src={avatar} className="w-full h-full object-cover" alt="" />
                     ) : (
@@ -77,23 +77,28 @@ const ConversationItem = memo(({
                     )}
                 </div>
                 {conv.unread_count > 0 && (
-                    <div className="absolute top-0 -left-1 w-3 h-3 rounded-full bg-[#007AFF]"></div>
+                    <div className="absolute top-0 -left-1 w-3.5 h-3.5 rounded-full bg-[#007AFF] border-2 border-white"></div>
                 )}
             </div>
 
-            <div className="flex-1 min-w-0 border-b border-[#E5E5EA] pb-3 h-full flex flex-col justify-center">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-[17px] font-bold text-black truncate tracking-tight">{name}</h3>
+            <div className="flex-1 min-w-0 pb-1 h-full flex flex-col justify-center">
+                <div className="flex justify-between items-center mb-0.5">
+                    <h3 className="text-[16px] font-bold text-black truncate tracking-tight">{name}</h3>
                     <div className="flex items-center gap-1">
-                        <span className="text-[15px] text-[#8E8E93]">{getTime()}</span>
-                        <svg width="8" height="13" viewBox="0 0 8 13" fill="none" className="ml-1 opacity-30">
-                            <path d="M1.5 1.5L6.5 6.5L1.5 11.5" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <span className="text-[14px] text-[#8E8E93] font-medium">{getTime()}</span>
+                        <ChevronRight size={14} className="text-[#8E8E93] opacity-40 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                 </div>
-                <p className="text-[15px] text-[#8E8E93] truncate leading-tight mt-0.5 pr-4">
-                    {messagePreview || 'No messages'}
-                </p>
+                <div className="flex items-center justify-between">
+                    <p className="text-[14px] text-[#8E8E93] truncate leading-tight pr-4">
+                        {messagePreview || 'No messages'}
+                    </p>
+                    {conv.unread_count > 0 && (
+                        <div className="bg-[#007AFF] text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">
+                            {conv.unread_count}
+                        </div>
+                    )}
+                </div>
             </div>
         </button>
     );
@@ -334,25 +339,33 @@ export default function ChatListPage() {
     return (
         <div className="h-full flex flex-col bg-white relative overflow-hidden font-sans">
             {/* iOS Header */}
-            <header className="ios-header safe-top px-4 py-3">
-                <div className="relative group">
-                    <button className="ios-btn-blue text-[17px]">New +</button>
-                    <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-[#E5E5EA] overflow-hidden z-50 min-w-[160px] hidden group-focus-within:block group-hover:block">
-                        <button onClick={() => setShowNewChat('broadcast')} className="w-full px-4 py-3 text-left text-[15px] text-black hover:bg-[#F2F2F7] transition-colors border-b border-[#E5E5EA]/50 flex items-center gap-3">
-                            <BroadcastIcon size={16} className="text-[#007AFF]" /> Broadcast
-                        </button>
-                        <button onClick={() => setShowNewChat('channel')} className="w-full px-4 py-3 text-left text-[15px] text-black hover:bg-[#F2F2F7] transition-colors flex items-center gap-3">
-                            <Hash size={16} className="text-[#007AFF]" /> Channel
-                        </button>
+            <header className="ios-header safe-top px-4 py-3 flex items-center justify-between">
+                <div className="flex-1 flex justify-start">
+                    <div className="relative group">
+                        <button className="ios-btn-blue text-[17px] font-medium py-1">New +</button>
+                        <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-[#E5E5EA] overflow-hidden z-50 min-w-[200px] hidden group-focus-within:block group-hover:block animate-scale-in origin-top-left">
+                            <button onClick={() => setShowNewChat('broadcast')} className="w-full px-4 py-3 text-left text-[15px] text-black hover:bg-[#F2F2F7] transition-colors border-b border-[#E5E5EA]/50 flex items-center gap-3">
+                                <BroadcastIcon size={18} className="text-[#007AFF]" />
+                                <span className="font-semibold">New Broadcast</span>
+                            </button>
+                            <button onClick={() => setShowNewChat('channel')} className="w-full px-4 py-3 text-left text-[15px] text-black hover:bg-[#F2F2F7] transition-colors flex items-center gap-3">
+                                <Hash size={18} className="text-[#007AFF]" />
+                                <span className="font-semibold">New Channel</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <h1 className="text-[17px] font-bold text-black">Messages</h1>
-                <button
-                    onClick={() => setShowNewChat('private')}
-                    className="ios-btn-blue"
-                >
-                    <SquarePen size={22} strokeWidth={1.5} />
-                </button>
+
+                <h1 className="text-[17px] font-black text-black tracking-tight">Messages</h1>
+
+                <div className="flex-1 flex justify-end">
+                    <button
+                        onClick={() => setShowNewChat('private')}
+                        className="ios-btn-blue p-1 active:scale-90 transition-transform"
+                    >
+                        <SquarePen size={22} strokeWidth={2} />
+                    </button>
+                </div>
             </header>
 
             {/* iOS Search Bar */}

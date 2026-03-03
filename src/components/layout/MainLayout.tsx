@@ -11,12 +11,15 @@ import {
     Hexagon,
     Bell,
     X,
+    Plus,
 } from 'lucide-react';
+import UniversalComposer from './UniversalComposer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function MainLayout() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { examMode } = useAppStore();
+    const { examMode, showToast, isComposerOpen, setComposerOpen } = useAppStore();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [notifications, setNotifications] = useState([
         { id: 1, title: 'Mesh update synced', time: 'Just now', read: false },
@@ -55,10 +58,20 @@ export default function MainLayout() {
             )}
 
             {/* Main Content Area */}
-            <main className={`flex-1 overflow-y-auto custom-scrollbar relative bg-[var(--surface)] ${!isChatScreen ? 'pb-20' : ''}`}>
+            <main className={`flex-1 overflow-y-auto custom-scrollbar relative bg-[var(--surface)] ${!isChatScreen ? 'pb-24' : ''}`}>
                 <Outlet />
                 <Toast />
             </main>
+
+            {/* Global FAB */}
+            {!examMode && (
+                <button
+                    onClick={() => setComposerOpen(true)}
+                    className="fixed bottom-[88px] right-6 w-14 h-14 bg-[#007AFF] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-all z-[90]"
+                >
+                    <Plus size={32} strokeWidth={2.5} />
+                </button>
+            )}
 
             {/* iOS Bottom Tab Bar */}
             {!isChatScreen && (
@@ -80,7 +93,16 @@ export default function MainLayout() {
                 </nav>
             )}
 
-            {/* iOS Style Sheet (Modal) */}
+            {/* Modals */}
+            <AnimatePresence>
+                {isComposerOpen && (
+                    <UniversalComposer
+                        isOpen={isComposerOpen}
+                        onClose={() => setComposerOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+
             {isNotificationsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm animate-fade-in flex items-end justify-center" onClick={() => setIsNotificationsOpen(false)}>
                     <div

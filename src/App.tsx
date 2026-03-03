@@ -117,7 +117,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="chats" replace />} />
+            <Route index element={<Navigate to="study" replace />} />
             <Route path="chats" element={<ChatLayout />}>
               <Route index element={null} />
               <Route path="discover" element={<ChatDiscoveryPage />} />

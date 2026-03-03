@@ -42,6 +42,10 @@ interface AppState {
     theme: 'light' | 'dark';
     setTheme: (theme: 'light' | 'dark') => void;
     toggleTheme: () => void;
+
+    // Composer
+    isComposerOpen: boolean;
+    setComposerOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -110,6 +114,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         const nextSync = get().theme === 'light' ? 'dark' : 'light';
         get().setTheme(nextSync);
     },
+
+    // Composer
+    isComposerOpen: false,
+    setComposerOpen: (isComposerOpen) => set({ isComposerOpen }),
 }));
 
 // Initialize settings from localStorage

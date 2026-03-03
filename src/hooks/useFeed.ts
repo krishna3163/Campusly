@@ -133,6 +133,19 @@ export function useFeed(campusId: string, category: string = 'all', hashtag?: st
         }
     }, [campusId, showToast]);
 
+    const handleReport = async (postId: string, userId: string, reason?: string) => {
+        try {
+            // Optimistically remove from feed
+            setPosts(prev => prev.filter(p => p.id !== postId));
+            const { error } = await FeedService.reportPost(userId, postId, reason);
+            if (error) throw error;
+            showToast('Report submitted. We are taking action.', 'success');
+        } catch (err) {
+            showToast('Report submission failed.', 'error');
+            refresh();
+        }
+    };
+
     return {
         posts,
         loading,
@@ -141,6 +154,7 @@ export function useFeed(campusId: string, category: string = 'all', hashtag?: st
         fetchFeed,
         refresh,
         handleVote,
+        handleReport,
         addPost
     };
 }

@@ -97,11 +97,11 @@ export default function PlacementHub() {
 
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 animate-fade-in">
                     <div className="max-w-xl">
-                        <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter text-brand-400 mb-4">
+                        <div className="inline-flex items-center gap-2 bg-[#007AFF15] border border-[#007AFF25] px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter text-[#007AFF] mb-4">
                             <Zap size={12} className="fill-current" />
                             <span>Recruitment Season 2026</span>
                         </div>
-                        <h1 className="text-4xl font-black text-[var(--foreground)] leading-tight">Your Career Gateway.</h1>
+                        <h1 className="text-4xl font-black text-[var(--foreground)] leading-tight tracking-tight">Your Career Gateway.</h1>
                         <p className="text-[var(--foreground-muted)] text-lg mt-2">Connecting students with top-tier opportunities and alumni wisdom.</p>
                     </div>
 
@@ -197,16 +197,16 @@ export default function PlacementHub() {
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         {smartJobs.length > 0 ? smartJobs.map(job => (
-                                            <div key={job.id} className="bg-campus-card border border-campus-border rounded-[24px] p-6 hover:border-brand-500/30 hover:shadow-card-hover transition-all flex flex-col group relative overflow-hidden">
+                                            <div key={job.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-[24px] p-6 hover:border-[#007AFF50] shadow-sm hover:shadow-elevation-2 transition-all flex flex-col group relative overflow-hidden">
                                                 {job.match_score !== undefined && job.match_score > 0 && (
-                                                    <div className="absolute top-0 right-0 px-4 py-1.5 bg-brand-500 text-white text-[10px] font-black italic rounded-bl-2xl shadow-glow">
+                                                    <div className="absolute top-0 right-0 px-4 py-1.5 bg-[#007AFF] text-white text-[10px] font-black italic rounded-bl-2xl shadow-sm">
                                                         {job.match_score}% Match
                                                     </div>
                                                 )}
 
                                                 <div className="flex items-start gap-4 mb-6 pt-2">
-                                                    <div className="w-14 h-14 rounded-2xl bg-brand-500/10 flex items-center justify-center border border-brand-500/20 group-hover:scale-110 transition-transform">
-                                                        <Building2 size={24} className="text-brand-400" />
+                                                    <div className="w-14 h-14 rounded-2xl bg-[#007AFF05] flex items-center justify-center border border-[#007AFF15] group-hover:scale-110 transition-transform">
+                                                        <Building2 size={24} className="text-[#007AFF]" />
                                                     </div>
                                                     <div>
                                                         <h4 className="font-bold text-lg text-[var(--foreground)] tracking-tight leading-tight">{job.title}</h4>

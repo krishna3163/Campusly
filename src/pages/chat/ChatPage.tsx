@@ -95,12 +95,22 @@ export default function ChatPage() {
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const { showToast } = useAppStore();
+    const { showToast, setComposerOpen } = useAppStore();
 
 
     const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
+
+    useEffect(() => {
+        const handleChatAction = (e: any) => {
+            if (e.detail === 'open-media') {
+                fileInputRef.current?.click();
+            }
+        };
+        window.addEventListener('chat-action', handleChatAction);
+        return () => window.removeEventListener('chat-action', handleChatAction);
+    }, []);
 
     useEffect(() => {
         if (!chatId || !user?.id) return;
@@ -120,7 +130,7 @@ export default function ChatPage() {
                     setChatAvatar(conv.avatar_url || '');
                     setDisappearingTimer(conv.disappearing_timer || null);
 
-                    const myMember = conv.members?.find((m: any) => m.user_id === user?.id);
+                    const myMember = (conv as any).members?.find((m: any) => m.user_id === user?.id);
                     setIsMuted(myMember?.muted || false);
 
                     if ((conv as any).type === 'private') {
@@ -150,9 +160,6 @@ export default function ChatPage() {
                     } else {
                         setOtherUserId(null);
                         setFriendship('friends');
-                        setChatName((conv as any).name || 'Conversation');
-                        setChatAvatar((conv as any).avatar_url || '');
-
                         // Check permissions
                         const { data: member } = await insforge.database
                             .from('conversation_members')
@@ -166,11 +173,6 @@ export default function ChatPage() {
                             const allPerms = [...new Set([...rolePerms, ...(member.permissions || [])])];
                             setPermissions(allPerms);
                             setIsAdmin(['owner', 'admin', 'moderator'].includes(member.role));
-                        }
-
-                        if ((conv as any).type === 'channel') {
-                            const settings = await ConversationService.getChannelSettings(chatId);
-                            setChannelSettings(settings);
                         }
                     }
                 }
@@ -508,9 +510,9 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col h-screen bg-white relative overflow-hidden font-sans">
             {/* iOS Header */}
             <header className="ios-header safe-top px-3 py-2 h-[44px]">
-                <button onClick={() => navigate('/app/chats')} className="ios-btn-blue flex items-center gap-1">
+                <button onClick={() => navigate('/app/chats')} className="ios-btn-blue flex items-center gap-1 -ml-1 pr-3">
                     <ArrowLeft size={22} strokeWidth={2.5} />
-                    {/* <span className="text-[17px]">Messages</span> */}
+                    <span className="text-[17px] font-medium">Messages</span>
                 </button>
 
                 <div className="flex flex-col items-center cursor-pointer" onClick={() => setIsInfoOpen(true)}>
@@ -800,7 +802,7 @@ export default function ChatPage() {
                         )}
                     </div>
 
-                    <button onClick={() => fileInputRef.current?.click()} className="p-1 text-[#007AFF] active:opacity-50">
+                    <button onClick={() => setComposerOpen(true)} className="p-1 text-[#007AFF] active:opacity-50">
                         <Plus size={28} strokeWidth={1.5} />
                     </button>
 

@@ -17,27 +17,53 @@ import {
     ChevronRight,
     Play,
     Pause,
-    RotateCcw
+    RotateCcw,
+    Zap,
+    Flame,
+    Target,
+    LayoutDashboard,
+    Code,
+    History
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 import LeetCodeWidget from '../../components/study/LeetCodeWidget';
 import LeetCodeComparison from '../../components/study/LeetCodeComparison';
 import LeetCodeQOTD from '../../components/study/LeetCodeQOTD';
+import StreakCalendar from '../../components/study/StreakCalendar';
+import CodingProfilesGrid from '../../components/study/CodingProfilesGrid';
+import CodingSwipeCards from '../../components/study/CodingSwipeCards';
+import DSAProgress from '../../components/study/DSAProgress';
+import UpcomingContests from '../../components/study/UpcomingContests';
+import LeetCodeLeaderboard from '../../components/study/LeetCodeLeaderboard';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 
 export default function StudyDashboard() {
     const { user } = useUser();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { examMode, setExamMode, showToast } = useAppStore();
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
     const [notes, setNotes] = useState<Note[]>([]);
     const [myGroups, setMyGroups] = useState<Conversation[]>([]);
+    const [activeTab, setActiveTab] = useState<'tasks' | 'coding' | 'revision'>('tasks');
     const [showAddModal, setShowAddModal] = useState<{ type: 'assignment' | 'exam', item?: any } | null>(null);
     const [searchNotes, setSearchNotes] = useState('');
 
     useEffect(() => {
         if (user?.id) loadData();
-    }, [user?.id]);
+
+        // Handle Action from Universal Composer
+        const action = searchParams.get('action');
+        if (action === 'add-task') setShowAddModal({ type: 'assignment' });
+        if (action === 'add-exam') setShowAddModal({ type: 'exam' });
+        // Clear param after opening
+        if (action) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('action');
+            setSearchParams(nextParams, { replace: true });
+        }
+    }, [user?.id, searchParams]);
 
     const loadData = async () => {
         if (!user?.id) return;
@@ -124,148 +150,185 @@ export default function StudyDashboard() {
                 </div>
             </header>
 
+            {/* Navigation Tabs */}
+            <div className="bg-[var(--surface)] px-5 pb-3 flex items-center gap-6 border-b border-[var(--border)]">
+                <button
+                    onClick={() => setActiveTab('tasks')}
+                    className={`flex items-center gap-1.5 py-2 text-[14px] font-bold transition-all relative ${activeTab === 'tasks' ? 'text-[#007AFF]' : 'text-[#8E8E93]'}`}
+                >
+                    <LayoutDashboard size={18} />
+                    <span>Home</span>
+                    {activeTab === 'tasks' && <motion.div layoutId="tab-active" className="absolute -bottom-3 left-0 right-0 h-0.5 bg-[#007AFF]" />}
+                </button>
+                <button
+                    onClick={() => setActiveTab('coding')}
+                    className={`flex items-center gap-1.5 py-2 text-[14px] font-bold transition-all relative ${activeTab === 'coding' ? 'text-[#007AFF]' : 'text-[#8E8E93]'}`}
+                >
+                    <Code size={18} />
+                    <span>Dev Hub</span>
+                    {activeTab === 'coding' && <motion.div layoutId="tab-active" className="absolute -bottom-3 left-0 right-0 h-0.5 bg-[#007AFF]" />}
+                </button>
+                <button
+                    onClick={() => setActiveTab('revision')}
+                    className={`flex items-center gap-1.5 py-2 text-[14px] font-bold transition-all relative ${activeTab === 'revision' ? 'text-[#007AFF]' : 'text-[#8E8E93]'}`}
+                >
+                    <History size={18} />
+                    <span>Revision</span>
+                    {activeTab === 'revision' && <motion.div layoutId="tab-active" className="absolute -bottom-3 left-0 right-0 h-0.5 bg-[#007AFF]" />}
+                </button>
+            </div>
+
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
-                {/* 2x2 Stats Grid */}
-                <div className="px-5 py-6 grid grid-cols-2 gap-4">
-                    <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
-                        <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] mb-3">
-                            <BookOpen size={18} />
-                        </div>
-                        <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">{assignments.filter(a => a.status !== 'completed').length}</p>
-                        <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Active Tasks</p>
-                    </div>
-
-                    <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
-                        <div className="w-8 h-8 rounded-full bg-[#FF9500]/10 flex items-center justify-center text-[#FF9500] mb-3">
-                            <Calendar size={18} />
-                        </div>
-                        <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">{exams.length}</p>
-                        <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Upcoming Exams</p>
-                    </div>
-
-                    <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
-                        <div className="w-8 h-8 rounded-full bg-[#34C759]/10 flex items-center justify-center text-[#34C759] mb-3">
-                            <CheckCircle2 size={18} />
-                        </div>
-                        <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">{assignments.filter(a => a.status === 'completed').length}</p>
-                        <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Done Today</p>
-                    </div>
-
-                    <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
-                        <div className="w-8 h-8 rounded-full bg-[#AF52DE]/10 flex items-center justify-center text-[#AF52DE] mb-3">
-                            <Trophy size={18} />
-                        </div>
-                        <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">12</p>
-                        <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Study Streak</p>
-                    </div>
-                </div>
-
-                {/* Pomodoro Timer (if Exam Mode) */}
-                <AnimatePresence>
-                    {examMode && (
+                <AnimatePresence mode="wait">
+                    {activeTab === 'tasks' && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-                            animate={{ height: 'auto', opacity: 1, marginBottom: 24 }}
-                            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
-                            className="px-5 overflow-hidden"
+                            key="tasks"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
+                            className="space-y-6"
                         >
-                            <PomodoroWidget />
+                            {/* 2x2 Stats Grid */}
+                            <div className="px-5 py-6 grid grid-cols-2 gap-4">
+                                <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
+                                    <div className="w-8 h-8 rounded-full bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] mb-3">
+                                        <BookOpen size={18} />
+                                    </div>
+                                    <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">{assignments.filter(a => a.status !== 'completed').length}</p>
+                                    <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Active Tasks</p>
+                                </div>
+
+                                <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
+                                    <div className="w-8 h-8 rounded-full bg-[#FF9500]/10 flex items-center justify-center text-[#FF9500] mb-3">
+                                        <Calendar size={18} />
+                                    </div>
+                                    <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">{exams.length}</p>
+                                    <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Upcoming Exams</p>
+                                </div>
+
+                                <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
+                                    <div className="w-8 h-8 rounded-full bg-[#34C759]/10 flex items-center justify-center text-[#34C759] mb-3">
+                                        <CheckCircle2 size={18} />
+                                    </div>
+                                    <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">{assignments.filter(a => a.status === 'completed').length}</p>
+                                    <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Done Today</p>
+                                </div>
+
+                                <div className="bg-[var(--surface)] p-4 rounded-[16px] shadow-sm border border-[var(--border)] active:scale-[0.98] transition-all">
+                                    <div className="w-8 h-8 rounded-full bg-[#AF52DE]/10 flex items-center justify-center text-[#AF52DE] mb-3">
+                                        <Trophy size={18} />
+                                    </div>
+                                    <p className="text-[28px] font-bold text-[var(--foreground)] leading-none">12</p>
+                                    <p className="text-[14px] text-[var(--foreground-muted)] font-medium mt-1">Study Streak</p>
+                                </div>
+                            </div>
+
+                            {/* Pomodoro Timer (if Exam Mode) */}
+                            {examMode && <div className="px-5 mb-6"><PomodoroWidget /></div>}
+
+                            {/* Minimalist Task List */}
+                            <div className="px-5">
+                                <div className="flex items-center justify-between mb-3 px-1">
+                                    <h3 className="text-[20px] font-bold text-[var(--foreground)]">Academic View</h3>
+                                    <button onClick={() => setShowAddModal({ type: 'assignment' })} className="text-[15px] font-semibold text-[#007AFF]">Add Task</button>
+                                </div>
+
+                                <div className="bg-[var(--surface)] rounded-[20px] shadow-sm border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
+                                    {assignments.length > 0 ? (
+                                        assignments.slice(0, 5).map(a => (
+                                            <div key={a.id} className="flex items-center gap-4 p-4 active:bg-[var(--background)] transition-colors group">
+                                                <button
+                                                    onClick={() => handleToggleTask(a)}
+                                                    className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${a.status === 'completed' ? 'bg-[#34C759] border-[#34C759] text-white' : 'border-[var(--border)] bg-[var(--surface)]'}`}
+                                                >
+                                                    {a.status === 'completed' && <CheckCircle2 size={14} strokeWidth={3} />}
+                                                </button>
+                                                <div className="flex-1 min-w-0" onClick={() => setShowAddModal({ type: 'assignment', item: a })}>
+                                                    <h4 className={`text-[17px] font-semibold truncate transition-all cursor-pointer ${a.status === 'completed' ? 'text-[var(--foreground-muted)] line-through' : 'text-[var(--foreground)]'}`}>
+                                                        {a.title}
+                                                    </h4>
+                                                    <p className="text-[13px] text-[var(--foreground-muted)]">{a.subject} • {getDaysUntil(a.due_date || '')}</p>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="py-12 text-center">
+                                            <Trophy size={40} className="mx-auto mb-3 text-[#34C759] opacity-30" />
+                                            <p className="text-[17px] font-bold text-[var(--foreground)]">All Caught Up!</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'coding' && (
+                        <motion.div
+                            key="coding"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
+                            className="px-5 pt-6 space-y-6"
+                        >
+                            <CodingProfilesGrid profile={user?.profile} />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-6">
+                                    <LeetCodeQOTD />
+                                    <StreakCalendar />
+                                </div>
+                                <div className="space-y-6">
+                                    <DSAProgress />
+                                    <UpcomingContests />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-[20px] font-black text-[var(--foreground)] px-1">Challenge Cards</h3>
+                                <CodingSwipeCards userId={user?.id || ''} />
+                            </div>
+
+                            <LeetCodeLeaderboard />
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'revision' && (
+                        <motion.div
+                            key="revision"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
+                            className="px-5 pt-6"
+                        >
+                            <div className="flex items-center gap-2 mb-6 px-1">
+                                <History className="text-[#AF52DE]" size={24} />
+                                <h3 className="text-[22px] font-black text-[var(--foreground)] tracking-tight">Revision Queue</h3>
+                            </div>
+
+                            <div className="space-y-3">
+                                {assignments.filter(a => a.status === 'completed').map(a => (
+                                    <div key={a.id} className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] flex items-center justify-between group active:scale-[0.98] transition-all">
+                                        <div>
+                                            <h4 className="font-bold text-[16px] text-[var(--foreground)]">{a.title}</h4>
+                                            <p className="text-[12px] text-[#8E8E93] uppercase font-bold tracking-tight mt-0.5">{a.subject} • Completed 2 days ago</p>
+                                        </div>
+                                        <button className="w-10 h-10 rounded-full bg-[#AF52DE]/10 text-[#AF52DE] flex items-center justify-center group-hover:bg-[#AF52DE] group-hover:text-white transition-all">
+                                            <RotateCcw size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {assignments.filter(a => a.status === 'completed').length === 0 && (
+                                    <div className="py-20 text-center text-[#8E8E93]">
+                                        <History size={48} className="mx-auto mb-4 opacity-20" />
+                                        <p className="font-bold">No items for revision yet.</p>
+                                        <p className="text-[13px] mt-1">Complete tasks to see them here.</p>
+                                    </div>
+                                )}
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* Search & Secondary Content */}
-                <div className="px-5 mb-8">
-                    <div className="bg-[var(--border)] rounded-[10px] px-3 py-2 flex items-center gap-2 mb-6">
-                        <Search size={18} className="text-[var(--foreground-muted)]" />
-                        <input
-                            type="text"
-                            value={searchNotes}
-                            onChange={e => setSearchNotes(e.target.value)}
-                            placeholder="Search tasks or notes..."
-                            className="bg-transparent w-full text-[17px] outline-none placeholder:text-[var(--foreground-muted)] text-[var(--foreground)]"
-                        />
-                    </div>
-
-                    <div className="space-y-6 mb-8">
-                        {user?.id && (
-                            <>
-                                <div className="bg-[var(--surface)] rounded-[16px] border border-[var(--border)] shadow-sm overflow-hidden p-2">
-                                    <LeetCodeWidget userId={user.id} />
-                                </div>
-                                <div className="bg-[var(--surface)] rounded-[16px] border border-[var(--border)] shadow-sm overflow-hidden">
-                                    <LeetCodeComparison userId={user.id} />
-                                </div>
-                                <LeetCodeQOTD />
-                            </>
-                        )}
-                        {!user?.id && <div className="p-4 text-center text-[var(--foreground-muted)] bg-[var(--surface)] rounded-[16px] border border-[var(--border)] shadow-sm">Sign in to see stats</div>}
-                    </div>
-                </div>
-
-                {/* Minimalist Task List */}
-                <div className="px-5">
-                    <div className="flex items-center justify-between mb-3 px-1">
-                        <h3 className="text-[20px] font-bold text-[var(--foreground)]">Upcoming Tasks</h3>
-                        <button
-                            onClick={() => setShowAddModal({ type: 'assignment' })}
-                            className="text-[15px] font-semibold text-[#007AFF]"
-                        >
-                            See All
-                        </button>
-                    </div>
-
-                    <div className="bg-[var(--surface)] rounded-[20px] shadow-sm border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
-                        {assignments.length > 0 ? (
-                            assignments.slice(0, 5).map(a => (
-                                <div key={a.id} className="flex items-center gap-4 p-4 active:bg-[var(--background)] transition-colors group">
-                                    <button
-                                        onClick={() => handleToggleTask(a)}
-                                        className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${a.status === 'completed'
-                                            ? 'bg-[#34C759] border-[#34C759] text-white'
-                                            : 'border-[var(--border)] bg-[var(--surface)]'
-                                            }`}
-                                    >
-                                        {a.status === 'completed' && <CheckCircle2 size={14} strokeWidth={3} />}
-                                    </button>
-                                    <div className="flex-1 min-w-0" onClick={() => setShowAddModal({ type: 'assignment', item: a })}>
-                                        <h4 className={`text-[17px] font-semibold truncate transition-all cursor-pointer ${a.status === 'completed' ? 'text-[var(--foreground-muted)] line-through' : 'text-[var(--foreground)]'}`}>
-                                            {a.title}
-                                        </h4>
-                                        <p className="text-[13px] text-[var(--foreground-muted)]">{a.subject} • {getDaysUntil(a.due_date || '')}</p>
-                                    </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => setShowAddModal({ type: 'assignment', item: a })}
-                                            className="p-1.5 text-[#007AFF] hover:bg-[#007AFF]/10 rounded-lg transition-all"
-                                            title="Edit task"
-                                        >
-                                            <Pencil size={14} />
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                await insforge.database.from('assignments').delete().eq('id', a.id);
-                                                loadData();
-                                                showToast('Task deleted', 'success');
-                                            }}
-                                            className="p-1.5 text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-lg transition-all"
-                                            title="Delete task"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="py-12 text-center">
-                                <Trophy size={40} className="mx-auto mb-3 text-[#34C759] opacity-30" />
-                                <p className="text-[17px] font-bold text-[var(--foreground)]">All Caught Up!</p>
-                                <p className="text-[15px] text-[var(--foreground-muted)] px-8">You've completed all your tasks for now.</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
             </div>
 
             {/* Add Task/Exam Dialog (iOS Sheet) */}

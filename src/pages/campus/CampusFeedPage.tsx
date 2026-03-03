@@ -16,6 +16,7 @@ import {
     Repeat,
     MessageCircle,
     Globe,
+    MoreVertical,
     Image as LucideImage
 } from 'lucide-react';
 import { PollView } from '../../components/feed/PollView';
@@ -41,7 +42,7 @@ export default function CampusFeedPage() {
     const [activeCategory, setActiveCategory] = useState('all');
     const [activeHashtag, setActiveHashtag] = useState<string | undefined>(undefined);
     const campusId = (user?.profile as any)?.campus_id || 'befcc309-623b-47eb-b3f3-83911eae09c7';
-    const { posts, loading, refresh, handleVote } = useFeed(campusId, activeCategory, activeHashtag);
+    const { posts, loading, refresh, handleVote, handleReport } = useFeed(campusId, activeCategory, activeHashtag);
     const [sharingPost, setSharingPost] = useState<any>(null);
 
     useEffect(() => {
@@ -216,12 +217,26 @@ export default function CampusFeedPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => handleRemix(post)}
-                                    className="p-2 text-[#8E8E93] hover:text-[#007AFF] transition-colors"
-                                >
-                                    <Repeat size={18} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => handleRemix(post)}
+                                        className="flex items-center gap-1 p-2 text-[#8E8E93] hover:text-[#007AFF] transition-colors"
+                                    >
+                                        <Repeat size={18} />
+                                        {post.repost_count > 0 && <span className="text-[12px] font-bold">{post.repost_count}</span>}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Report this post for community review?')) {
+                                                handleReport(post.id, user?.id || '');
+                                            }
+                                        }}
+                                        className="p-2 text-[#8E8E93] hover:text-[#FF3B30] transition-colors"
+                                        title="Report Post"
+                                    >
+                                        <Shield size={18} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Post Content */}
@@ -259,11 +274,26 @@ export default function CampusFeedPage() {
                                         className={`flex items-center gap-1.5 transition-all text-[14px] ${post.user_vote === 'dislike' ? 'text-[#FF3B30] font-bold' : 'text-[#8E8E93]'}`}
                                     >
                                         <ThumbsDown size={20} strokeWidth={post.user_vote === 'dislike' ? 2.5 : 1.5} />
+                                        <span>{post.dislikes_count || 0}</span>
                                     </button>
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[14px] text-[#8E8E93]">
-                                    <MessageCircle size={20} strokeWidth={1.5} />
-                                    <span>{post.comments_count || 0}</span>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-1.5 text-[14px] text-[#8E8E93]">
+                                        <MessageCircle size={20} strokeWidth={1.5} />
+                                        <span>{post.comments_count || 0}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const options = window.confirm('Menu Options:\n- Share Post\n- Report Post');
+                                            if (options) {
+                                                // Simplified menu for mobile-first feel
+                                                alert('Action selected!');
+                                            }
+                                        }}
+                                        className="text-[#8E8E93] p-1"
+                                    >
+                                        <MoreVertical size={20} />
+                                    </button>
                                 </div>
                                 <button
                                     onClick={() => setSharingPost(post)}
@@ -287,13 +317,6 @@ export default function CampusFeedPage() {
                 />
             )}
 
-            {/* Floating Action Button */}
-            <button
-                onClick={() => navigate('/app/campus/post/new')}
-                className="fixed bottom-24 right-6 w-14 h-14 bg-[#007AFF] rounded-full flex items-center justify-center text-white shadow-lg active:scale-95 transition-all z-40"
-            >
-                <Plus size={30} strokeWidth={2.5} />
-            </button>
-        </div >
+        </div>
     );
 }

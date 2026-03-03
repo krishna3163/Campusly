@@ -139,6 +139,9 @@ export const FeedService = {
 
     async repost(userId: string, campusId: string, originalPostId: string, quote?: string) {
         try {
+            // Increment repost count
+            await insforge.database.rpc('increment_repost_count', { post_id: originalPostId });
+
             if (quote) {
                 return this.createPost(userId, campusId, {
                     content: quote,
@@ -268,6 +271,17 @@ export const FeedService = {
 
     async trackShare(postId: string) {
         return insforge.database.rpc('increment_share_count', { post_id: postId });
+    },
+
+    async reportPost(userId: string, postId: string, reason?: string) {
+        try {
+            const { error } = await insforge.database
+                .from('post_reports')
+                .insert({ user_id: userId, post_id: postId, reason });
+            return { error };
+        } catch (err) {
+            return { error: err };
+        }
     },
 
     async getTrendingHashtags(limit = 10) {
