@@ -242,16 +242,65 @@ export const ConversationService = {
             .eq('id', conversationId);
     },
 
-    async leaveConversation(conversationId: string, userId: string) {
+    async leaveConversation(conversation_id: string, userId: string) {
         const { error } = await insforge.database
             .from('conversation_members')
             .delete()
-            .eq('conversation_id', conversationId)
+            .eq('conversation_id', conversation_id)
             .eq('user_id', userId);
 
         if (!error) {
-            await insforge.database.rpc('decrement_member_count', { convo_id: conversationId });
+            await insforge.database.rpc('decrement_member_count', { convo_id: conversation_id });
         }
         return { error };
+    },
+
+    async getRecentConversations(userId: string, limit = 10) {
+        try {
+            const { data: members } = await insforge.database
+                .from('conversation_members')
+                .select('conversation_id, is_starred, muted')
+                .eq('user_id', userId);
+
+            if (!members || members.length === 0) return { data: [], error: null };
+
+            const ids = members.map(m => m.conversation_id);
+            const { data: conversations, error } = await insforge.database
+                .from('conversations')
+                .select('*, last_message:messages(*)')
+                .in('id', ids)
+                .order('updated_at', { ascending: false })
+                .limit(limit);
+
+            if (error) throw error;
+
+            // Enrich with other user info if needed
+            const enriched = await Promise.all((conversations || []).map(async (conv) => {
+                const isPrivate = conv.type === 'private' || conv.type === 'direct';
+                let otherUser = null;
+                if (isPrivate) {
+                    const { data: otherMember } = await insforge.database
+                        .from('conversation_members')
+                        .select('user_id')
+                        .eq('conversation_id', conv.id)
+                        .neq('user_id', userId)
+                        .single();
+
+                    if (otherMember) {
+                        const { data: profile } = await insforge.database
+                            .from('profiles')
+                            .select('*')
+                            .eq('id', otherMember.user_id)
+                            .single();
+                        otherUser = profile;
+                    }
+                }
+                return { ...conv, other_user: otherUser };
+            }));
+
+            return { data: enriched, error: null };
+        } catch (err) {
+            return { data: [], error: err };
+        }
     }
 };

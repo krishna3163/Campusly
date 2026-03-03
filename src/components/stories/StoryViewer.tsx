@@ -118,7 +118,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                 if (info.offset.y > 150) onClose();
             }}
         >
-            <div className="relative w-full max-w-lg h-full bg-campus-darker md:aspect-[9/16] md:h-[90vh] md:rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+            <div className="relative w-full max-w-lg h-full bg-black md:aspect-[9/16] md:h-[90vh] md:rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
 
                 {/* Progress Indicators */}
                 <div className="absolute top-4 inset-x-4 flex gap-1 z-[1100]">
@@ -137,9 +137,9 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                 </div>
 
                 {/* Header */}
-                <div className="absolute top-8 inset-x-4 flex items-center justify-between z-[1100] px-2 shadow-text">
+                <div className="absolute top-8 inset-x-4 flex items-center justify-between z-[1100] px-2">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center font-black border-2 border-white/20 overflow-hidden">
+                        <div className="w-10 h-10 rounded-full bg-[var(--brand)] flex items-center justify-center font-bold border-2 border-white/20 overflow-hidden text-white">
                             {currentStory.user?.avatar_url ? (
                                 <img src={currentStory.user.avatar_url} className="w-full h-full object-cover" />
                             ) : (
@@ -147,8 +147,8 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                             )}
                         </div>
                         <div>
-                            <h4 className="text-white text-sm font-black italic">{currentStory.user?.display_name}</h4>
-                            <p className="text-white/60 text-[10px] uppercase font-bold tracking-widest leading-none">
+                            <h4 className="text-white text-sm font-bold">{currentStory.user?.display_name}</h4>
+                            <p className="text-white/60 text-[10px] font-medium leading-none">
                                 {new Date(currentStory.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                         </div>
@@ -158,7 +158,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
 
                 {/* Main Content Areas */}
                 <div
-                    className="flex-1 relative flex items-center justify-center bg-campus-dark"
+                    className="flex-1 relative flex items-center justify-center"
                     onMouseDown={() => setIsPaused(true)}
                     onMouseUp={() => setIsPaused(false)}
                     onTouchStart={() => setIsPaused(true)}
@@ -189,29 +189,17 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                                 />
                             )}
                             {currentStory.type === 'text' && (
-                                <div className={`w-full h-full p-12 flex flex-col items-center justify-center text-center bg-gradient-to-br ${currentStory.metadata?.type === 'vibe_check' ? 'from-purple-900 via-brand-900 to-indigo-900' : 'from-brand-600 via-indigo-600 to-purple-800'}`}>
-                                    {currentStory.metadata?.type === 'vibe_check' && (
-                                        <motion.div
-                                            initial={{ scale: 0, rotate: -20 }}
-                                            animate={{ scale: 1, rotate: 0 }}
-                                            className="text-[120px] mb-8 drop-shadow-2xl animate-float-slow"
-                                        >
-                                            {currentStory.metadata.emoji}
-                                        </motion.div>
-                                    )}
-                                    <h2 className={`text-4xl font-black italic text-white leading-tight drop-shadow-glow ${currentStory.metadata?.type === 'vibe_check' ? 'tracking-tighter uppercase' : 'tracking-tight'}`}>
+                                <div className={`w-full h-full p-12 flex flex-col items-center justify-center text-center bg-gradient-to-br ${currentStory.metadata?.bg_color || 'from-[#007AFF] to-[#5856D6]'}`}>
+                                    <h2 className="text-3xl font-bold text-white leading-tight">
                                         {currentStory.content}
                                     </h2>
-                                    {currentStory.metadata?.type === 'vibe_check' && (
-                                        <p className="mt-6 text-[10px] font-black uppercase tracking-[0.4em] text-white/40 italic">Global Vibe Broadcast</p>
-                                    )}
                                 </div>
                             )}
 
                             {/* Caption Overlay */}
                             {currentStory.content && currentStory.type !== 'text' && (
                                 <div className="absolute bottom-32 inset-x-0 p-8 pt-16 bg-gradient-to-t from-black/80 to-transparent">
-                                    <p className="text-white text-base font-bold text-center leading-relaxed italic">
+                                    <p className="text-white text-base font-medium text-center leading-relaxed">
                                         {currentStory.content}
                                     </p>
                                 </div>
@@ -225,27 +213,26 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                     {!isMyStory ? (
                         <div className="space-y-4">
                             <form onSubmit={handleReply} className="flex gap-4 items-center">
-                                <div className="flex-1 bg-white/10 backdrop-blur-md rounded-full px-6 py-4 border border-white/10 flex items-center justify-between">
+                                <div className="flex-1 bg-white/20 backdrop-blur-md rounded-full px-5 py-3 border border-white/20 flex items-center justify-between">
                                     <input
                                         type="text"
-                                        placeholder="Reply thoughtfully..."
-                                        className="bg-transparent border-none outline-none text-white text-sm font-medium w-full placeholder:text-white/30"
+                                        placeholder="Send message"
+                                        className="bg-transparent border-none outline-none text-white text-[15px] font-medium w-full placeholder:text-white/50"
                                         value={reply}
                                         onChange={e => setReply(e.target.value)}
                                         onFocus={() => setIsPaused(true)}
                                         onBlur={() => setIsPaused(false)}
                                     />
-                                    <MessageCircle size={18} className="text-white/40" />
                                 </div>
-                                <button type="submit" className="p-4 bg-brand-500 rounded-full text-white shadow-glow active:scale-95 transition-all">
-                                    <Send size={20} />
+                                <button type="submit" className="text-white active:scale-95 transition-transform">
+                                    <Send size={24} />
                                 </button>
                             </form>
                             <div className="flex gap-4 justify-center">
                                 {['🔥', '❤️', '😂', '😮', '😢', '👏'].map(emoji => (
                                     <button
                                         key={emoji}
-                                        onClick={() => { StatusService.reactToStory(currentUser.id, currentStory.id, emoji); showToast('Reacted with ' + emoji, 'success'); }}
+                                        onClick={() => { StatusService.reactToStory(currentUser.id, currentStory.id, emoji); }}
                                         className="text-2xl hover:scale-125 transition-all active:scale-90"
                                     >
                                         {emoji}
@@ -255,7 +242,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                         </div>
                     ) : (
                         <div className="flex justify-between items-center text-white/60">
-                            <div className="flex items-center gap-2 font-black italic text-sm">
+                            <div className="flex items-center gap-2 font-bold text-sm">
                                 <Eye size={18} /> {currentStory.view_count || 0} Views
                             </div>
                             <button className="p-2 hover:text-white transition-all"><ChevronRight className="-rotate-90" /></button>
@@ -272,7 +259,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
                             exit={{ y: -100 }}
                             className="absolute inset-x-0 top-20 flex justify-center z-[2000] px-10"
                         >
-                            <div className="bg-red-500 text-white px-6 py-3 rounded-2xl flex items-center gap-3 font-black italic shadow-glow-red border border-white/20">
+                            <div className="bg-[#FF3B30] text-white px-6 py-3 rounded-2xl flex items-center gap-3 font-bold shadow-lg">
                                 <AlertCircle size={20} />
                                 {screenshotAlert}
                             </div>

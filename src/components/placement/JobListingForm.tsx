@@ -1,22 +1,22 @@
-import { useState } from 'react';
-import { insforge } from '../../lib/insforge';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { X } from 'lucide-react';
-import { JobService } from '../../services/JobService';
+import { JobService, JobListing } from '../../services/JobService';
 
 const BRANCH_TAGS = ['CSE', 'BTech', 'BCA', 'MCA', 'Mechanical', 'ECE', 'EEE', 'Civil', 'MBA'];
-const CUSTOM_TAG = 'Custom';
 
 export default function JobListingForm({
     onClose,
     onSaved,
     userId,
     campusId,
+    editJob
 }: {
     onClose: () => void;
     onSaved: () => void;
     userId: string;
     campusId?: string;
+    editJob?: JobListing | null;
 }) {
     const { showToast } = useAppStore();
     const [saving, setSaving] = useState(false);
@@ -25,59 +25,80 @@ export default function JobListingForm({
     const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
     const [applyLink, setApplyLink] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [lastDate, setLastDate] = useState('');
-    const [experienceRequired, setExperienceRequired] = useState('');
+    const [salaryRange, setSalaryRange] = useState('');
+    const [jobType, setJobType] = useState('');
+    const [remote, setRemote] = useState(false);
     const [branchEligibility, setBranchEligibility] = useState<string[]>([]);
+    const [skillsRequired, setSkillsRequired] = useState<string[]>([]);
     const [customTag, setCustomTag] = useState('');
 
+    useEffect(() => {
+        if (editJob) {
+            setTitle(editJob.title || '');
+            setCompanyName(editJob.company_name || '');
+            setLocation(editJob.location || '');
+            setDescription(editJob.description || '');
+            setApplyLink(editJob.apply_link || '');
+            setSalaryRange(editJob.salary_range || '');
+            setJobType(editJob.job_type || '');
+            setRemote(editJob.remote || false);
+            setBranchEligibility(editJob.branch_eligibility || []);
+            setSkillsRequired(editJob.skills_required || []);
+        }
+    }, [editJob]);
+
     const toggleBranch = (tag: string) => {
-        if (tag === CUSTOM_TAG) return;
         setBranchEligibility(prev =>
             prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
         );
     };
 
     const addCustomTag = () => {
-        if (customTag.trim() && !branchEligibility.includes(customTag.trim())) {
-            setBranchEligibility(prev => [...prev, customTag.trim()]);
+        if (customTag.trim() && !skillsRequired.includes(customTag.trim())) {
+            setSkillsRequired(prev => [...prev, customTag.trim()]);
             setCustomTag('');
         }
     };
 
     const handleSave = async () => {
-        if (!title.trim() || !companyName.trim() || !location.trim()) {
-            showToast('Title, Company, and Location are required.', 'error');
+        if (!title.trim() || !companyName.trim()) {
+            showToast('Title and Company are required.', 'error');
             return;
         }
         setSaving(true);
         try {
-            const { error } = await JobService.postJob({
-                author_id: userId,
+            const payload: any = {
                 campus_id: campusId || null,
+                posted_by: userId,
                 title: title.trim(),
                 company_name: companyName.trim(),
-                location: location.trim(),
+                location: location.trim() || '',
                 description: description.trim() || undefined,
                 apply_link: applyLink.trim() || undefined,
-                start_date: startDate ? new Date(startDate).toISOString().split('T')[0] : undefined,
-                last_date: lastDate ? new Date(lastDate).toISOString().split('T')[0] : undefined,
-                experience_required: experienceRequired.trim() || undefined,
-                branch_eligibility: branchEligibility,
-                hashtags: branchEligibility,
-                is_active: true
-            });
+                salary_range: salaryRange.trim() || undefined,
+                job_type: jobType || undefined,
+                remote,
+                branch_eligibility: branchEligibility.length > 0 ? branchEligibility : undefined,
+                skills_required: skillsRequired.length > 0 ? skillsRequired : undefined,
+            };
 
-            if (error) {
-                showToast(error, 'error');
+            let response;
+            if (editJob?.id) {
+                response = await JobService.updateJob(editJob.id, payload);
+            } else {
+                response = await JobService.postJob(payload);
+            }
+
+            if (response.error) {
+                showToast(response.error, 'error');
                 return;
             }
 
-            showToast('Job listing posted successfully!', 'success');
+            showToast(editJob?.id ? 'Job listing updated!' : 'Job listing posted successfully!', 'success');
             onSaved();
         } catch (err) {
             console.error(err);
-            showToast('Failed to post job. Please try again.', 'error');
+            showToast('Failed to save job. Please try again.', 'error');
         } finally {
             setSaving(false);
         }
@@ -87,7 +108,7 @@ export default function JobListingForm({
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
             <div className="w-full max-w-lg glass-card p-6 animate-scale-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold">Add Job Listing</h2>
+                    <h2 className="text-xl font-bold">{editJob ? 'Edit' : 'Add'} Job Listing</h2>
                     <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 text-campus-muted"><X size={20} /></button>
                 </div>
                 <div className="space-y-4">
@@ -100,7 +121,7 @@ export default function JobListingForm({
                         <input value={companyName} onChange={e => setCompanyName(e.target.value)} className="input-field py-3" placeholder="e.g. TechCorp Inc." />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Location *</label>
+                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Location</label>
                         <input value={location} onChange={e => setLocation(e.target.value)} className="input-field py-3" placeholder="e.g. Remote, San Francisco, Bangalore" />
                     </div>
                     <div>
@@ -113,20 +134,26 @@ export default function JobListingForm({
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Start Date</label>
-                            <input value={startDate} onChange={e => setStartDate(e.target.value)} type="date" className="input-field py-3" />
+                            <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Salary Range</label>
+                            <input value={salaryRange} onChange={e => setSalaryRange(e.target.value)} className="input-field py-3" placeholder="e.g. 5-8 LPA" />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Last Date</label>
-                            <input value={lastDate} onChange={e => setLastDate(e.target.value)} type="date" className="input-field py-3" />
+                            <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Job Type</label>
+                            <select value={jobType} onChange={e => setJobType(e.target.value)} className="input-field py-3 w-full">
+                                <option value="">Select...</option>
+                                <option value="full-time">Full Time</option>
+                                <option value="part-time">Part Time</option>
+                                <option value="internship">Internship</option>
+                                <option value="contract">Contract</option>
+                            </select>
                         </div>
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Experience (optional)</label>
-                        <input value={experienceRequired} onChange={e => setExperienceRequired(e.target.value)} className="input-field py-3" placeholder="e.g. 0-2 years" />
+                    <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={remote} onChange={e => setRemote(e.target.checked)} className="w-5 h-5 rounded" id="remote-check" />
+                        <label htmlFor="remote-check" className="text-sm font-medium">Remote position</label>
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Branch eligibility / Hashtags</label>
+                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Branch Eligibility</label>
                         <div className="flex flex-wrap gap-2 mb-2">
                             {BRANCH_TAGS.map(t => (
                                 <button key={t} type="button" onClick={() => toggleBranch(t)}
@@ -135,14 +162,25 @@ export default function JobListingForm({
                                 </button>
                             ))}
                         </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-campus-muted uppercase mb-1 block">Skills Required</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {skillsRequired.map(s => (
+                                <span key={s} className="px-3 py-1 bg-brand-500/20 text-brand-400 rounded-full text-xs font-bold flex items-center gap-1">
+                                    {s}
+                                    <button onClick={() => setSkillsRequired(prev => prev.filter(x => x !== s))} className="hover:text-red-400"><X size={12} /></button>
+                                </span>
+                            ))}
+                        </div>
                         <div className="flex gap-2">
                             <input value={customTag} onChange={e => setCustomTag(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomTag())}
-                                className="input-field py-2 flex-1" placeholder="Custom tag" />
+                                className="input-field py-2 flex-1" placeholder="e.g. React, Node.js" />
                             <button type="button" onClick={addCustomTag} className="btn-secondary py-2 px-4 text-sm">Add</button>
                         </div>
                     </div>
                     <button onClick={handleSave} disabled={saving} className="btn-primary w-full py-4 rounded-2xl font-bold mt-4 disabled:opacity-50">
-                        {saving ? 'Posting...' : 'Post Job'}
+                        {saving ? 'Processing...' : (editJob ? 'Update Job' : 'Post Job')}
                     </button>
                 </div>
             </div>

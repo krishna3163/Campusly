@@ -29,7 +29,7 @@ export const StoryCircle: React.FC<StoryCircleProps> = ({
         >
             <div className={`relative rounded-full ${hasStatus ? (isViewed ? viewedBorder : newBorder) : ''}`}>
                 <div
-                    className="rounded-full bg-campus-dark border-[3px] border-campus-darker overflow-hidden"
+                    className="rounded-full bg-[var(--background)] border-[3px] border-[var(--surface)] overflow-hidden"
                     style={{ width: size, height: size }}
                 >
                     {user.avatar_url ? (
@@ -39,17 +39,17 @@ export const StoryCircle: React.FC<StoryCircleProps> = ({
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-white/5 text-xl font-bold">
+                        <div className="w-full h-full flex items-center justify-center bg-[var(--border)] text-xl font-bold text-[var(--foreground)]">
                             {user.display_name.charAt(0)}
                         </div>
                     )}
                 </div>
 
                 {!isViewed && hasStatus && (
-                    <div className="absolute inset-0 rounded-full animate-pulse ring-2 ring-brand-500/20 pointer-events-none"></div>
+                    <div className="absolute inset-0 rounded-full animate-pulse ring-2 ring-[var(--brand)]/20 pointer-events-none"></div>
                 )}
             </div>
-            <span className="text-[11px] font-medium text-campus-muted truncate w-full text-center group-hover:text-white transition-colors">
+            <span className="text-[11px] font-medium text-[var(--foreground-muted)] truncate w-full text-center group-hover:text-[var(--foreground)] transition-colors">
                 {user.id === 'me' ? 'My Story' : user.display_name.split(' ')[0]}
             </span>
         </button>

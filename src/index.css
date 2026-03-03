@@ -45,7 +45,7 @@
     @apply min-h-full mx-auto relative bg-[var(--surface)];
     /* Responsive Width for Web */
     @apply sm:max-w-screen-sm md:max-w-screen-md lg:max-w-[1200px];
-    @apply sm:shadow-[0_0_50px_rgba(0, 0, 0, 0.1)] sm:border-x border-[var(--border)];
+    @apply sm:shadow-2xl sm:border-x border-[var(--border)];
   }
 
   ::-webkit-scrollbar {
@@ -59,7 +59,7 @@
 
 @layer components {
   .ios-header {
-    @apply sticky top-0 z-40 bg-[var(--surface)]/80 backdrop-blur-xl border-b border-[var(--border)] px-4 py-2 flex items-center justify-between min-h-[44px];
+    @apply sticky top-0 z-40 bg-[var(--surface)] bg-opacity-80 backdrop-blur-xl border-b border-[var(--border)] px-4 py-2 flex items-center justify-between min-h-[44px];
   }
 
   .ios-title {
@@ -71,7 +71,7 @@
   }
 
   .ios-search-bar {
-    @apply bg-[var(--border)]/60 rounded-xl px-3 py-2 flex items-center gap-2 mx-4 my-2;
+    @apply bg-[var(--border)] bg-opacity-60 rounded-xl px-3 py-2 flex items-center gap-2 mx-4 my-2;
   }
 
   .ios-search-input {
@@ -80,15 +80,38 @@
 
   /* iMessage Bubbles */
   .bubble-sent {
-    @apply bg-[var(--brand)] text-white rounded-[20px] rounded-br-[4px] px-4 py-2.5 max-w-[75%] text-[17px] leading-tight shadow-sm self-end;
+    @apply bg-[var(--brand)] text-white rounded-[20px] px-4 py-2.5 max-w-[75%] text-[17px] leading-tight shadow-sm self-end relative;
+  }
+
+  .bubble-sent::after {
+    content: "";
+    @apply absolute bottom-0 -right-2 w-5 h-5 bg-[var(--brand)];
+    clip-path: polygon(0 0, 0% 100%, 100% 100%);
+    border-bottom-left-radius: 10px;
+  }
+
+  /* Version without tail for consecutive messages */
+  .bubble-sent-no-tail {
+    @apply bg-[var(--brand)] text-white rounded-[20px] px-4 py-2.5 max-w-[75%] text-[17px] leading-tight shadow-sm self-end;
   }
 
   .bubble-received {
-    @apply bg-[var(--border)] text-[var(--foreground)] rounded-[20px] rounded-bl-[4px] px-4 py-2.5 max-w-[75%] text-[17px] leading-tight self-start;
+    @apply bg-[var(--border)] text-[var(--foreground)] rounded-[20px] px-4 py-2.5 max-w-[75%] text-[17px] leading-tight self-start relative;
+  }
+
+  .bubble-received::after {
+    content: "";
+    @apply absolute bottom-0 -left-2 w-5 h-5 bg-[var(--border)];
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+    border-bottom-right-radius: 10px;
+  }
+
+  .bubble-received-no-tail {
+    @apply bg-[var(--border)] text-[var(--foreground)] rounded-[20px] px-4 py-2.5 max-w-[75%] text-[17px] leading-tight self-start;
   }
 
   .ios-tab-bar {
-    @apply fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-none bg-[var(--surface)]/90 backdrop-blur-xl border-t border-[var(--border)] flex justify-around items-center py-2 z-50;
+    @apply fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-none bg-[var(--surface)] bg-opacity-90 backdrop-blur-xl border-t border-[var(--border)] flex justify-around items-center py-2 z-50;
   }
 
   .ios-input-field {
@@ -96,7 +119,7 @@
   }
 
   .ios-btn-primary {
-    @apply bg-[var(--brand)] text-white rounded-full py-3 px-6 font-semibold active:opacity-80 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[var(--brand)]/20;
+    @apply bg-[var(--brand)] text-white rounded-full py-3 px-6 font-semibold active:opacity-80 transition-all flex items-center justify-center gap-2 shadow-lg;
   }
 
   .ios-card {

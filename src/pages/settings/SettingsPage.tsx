@@ -151,20 +151,20 @@ export default function SettingsPage() {
                             {/* Profile Preview Row - iOS style */}
                             <button
                                 onClick={() => setActiveCategoryId('account')}
-                                className="w-full h-[88px] flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl hover:bg-white/[0.06] transition-all group"
+                                className="w-full h-[88px] flex items-center gap-4 bg-[var(--surface-low)] p-4 rounded-2xl hover:bg-[var(--surface)] transition-all group"
                             >
                                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex-shrink-0 items-center justify-center flex text-2xl font-black text-white shadow-glow">
                                     {String((user?.profile as any)?.display_name || 'U').charAt(0)}
                                 </div>
                                 <div className="flex-1 text-left">
-                                    <h2 className="text-[20px] font-semibold text-white tracking-tight">{(user?.profile as any)?.display_name || 'Campus Student'}</h2>
-                                    <p className="text-[13px] text-gray-500 truncate">Account, Cloud Mesh, Media</p>
+                                    <h2 className="text-[20px] font-semibold text-[var(--foreground)] tracking-tight">{(user?.profile as any)?.display_name || 'Campus Student'}</h2>
+                                    <p className="text-[13px] text-[var(--foreground-muted)] truncate">Account, Cloud Mesh, Media</p>
                                 </div>
-                                <ChevronRight size={20} className="text-gray-600" />
+                                <ChevronRight size={20} className="text-[var(--foreground-muted)]/40" />
                             </button>
 
                             {/* Settings Groups */}
-                            <div className="space-y-[1px] bg-white/[0.03] rounded-2xl overflow-hidden border border-white/5">
+                            <div className="space-y-[1px] bg-[var(--surface-low)] rounded-2xl overflow-hidden border border-[var(--border)]">
                                 {filteredCategories.map(cat => {
                                     if (cat.id === 'account') return null; // Already shown above
                                     const Icon = iconMap[cat.icon] || Shield;
@@ -172,46 +172,46 @@ export default function SettingsPage() {
                                         <button
                                             key={cat.id}
                                             onClick={() => setActiveCategoryId(cat.id)}
-                                            className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-white/5 active:bg-white/[0.08] transition-all group"
+                                            className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-[var(--foreground)]/[0.04] active:bg-[var(--foreground)]/[0.07] transition-all group"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm ${getIconBg(cat.id)}`}>
                                                     <Icon size={18} />
                                                 </div>
-                                                <span className="text-[17px] text-white/95 font-medium">{cat.title}</span>
+                                                <span className="text-[17px] text-[var(--foreground)] font-medium">{cat.title}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {cat.id === 'performance' && <span className="text-[14px] text-gray-500 font-medium">Hyper</span>}
-                                                <ChevronRight size={18} className="text-gray-600/40" />
+                                                {cat.id === 'performance' && <span className="text-[14px] text-[var(--foreground-muted)] font-medium">Hyper</span>}
+                                                <ChevronRight size={18} className="text-[var(--foreground-muted)]/40" />
                                             </div>
                                         </button>
                                     );
                                 })}
                             </div>
 
-                            <div className="space-y-[1px] bg-white/[0.03] rounded-2xl overflow-hidden border border-white/5">
+                            <div className="space-y-[1px] bg-[var(--surface-low)] rounded-2xl overflow-hidden border border-[var(--border)]">
                                 <button
                                     onClick={() => navigate('/app/settings/developer')}
-                                    className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-white/5 active:bg-white/[0.08] transition-all"
+                                    className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-[var(--foreground)]/[0.04] active:bg-[var(--foreground)]/[0.07] transition-all"
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-gray-600 flex items-center justify-center text-white">
                                             <Zap size={18} />
                                         </div>
-                                        <span className="text-[17px] text-white/95 font-medium">Developer Mode</span>
+                                        <span className="text-[17px] text-[var(--foreground)] font-medium">Developer Mode</span>
                                     </div>
-                                    <ChevronRight size={18} className="text-gray-600/40" />
+                                    <ChevronRight size={18} className="text-[var(--foreground-muted)]/40" />
                                 </button>
                                 <button
                                     onClick={handleLogout}
-                                    className="w-full flex items-center justify-center p-4 bg-transparent hover:bg-white/5 active:bg-white/[0.08] transition-all text-red-500 font-medium text-[17px]"
+                                    className="w-full flex items-center justify-center p-4 bg-transparent hover:bg-[var(--foreground)]/[0.04] active:bg-[var(--foreground)]/[0.07] transition-all text-red-500 font-medium text-[17px]"
                                 >
                                     Sign Out
                                 </button>
                             </div>
 
                             <div className="text-center pb-12">
-                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Campusly v4.0.2-mesh</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[var(--foreground-muted)]/40">Campusly v4.0.2-mesh</p>
                             </div>
                         </motion.div>
                     ) : (
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                         >
                             <div className="pt-2 px-2">
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-[32px] font-bold text-white mb-2 leading-tight">{currentCategory?.title}</h2>
+                                    <h2 className="text-[32px] font-bold text-[var(--foreground)] mb-2 leading-tight">{currentCategory?.title}</h2>
                                     <button
                                         onClick={() => setActiveCategoryId(null)}
                                         className="text-[15px] font-semibold text-brand-500 active:opacity-50"
@@ -232,13 +232,13 @@ export default function SettingsPage() {
                                         Close Dialog
                                     </button>
                                 </div>
-                                <p className="text-[15px] text-gray-400 font-medium">
+                                <p className="text-[15px] text-[var(--foreground-muted)] font-medium">
                                     {getCategoryDescription(currentCategory?.id)}
                                 </p>
                             </div>
 
                             <div className="space-y-0.5">
-                                <div className="bg-white/[0.03] rounded-3xl overflow-hidden border border-white/5">
+                                <div className="bg-[var(--surface-low)] rounded-3xl overflow-hidden border border-[var(--border)]">
                                     {currentCategory?.items.map((item, idx) => (
                                         <SettingItemRow
                                             key={item.id}
@@ -252,14 +252,36 @@ export default function SettingsPage() {
 
                             {activeCategoryId === 'account' && (
                                 <div className="mt-12 space-y-4 px-2">
-                                    <p className="text-[13px] text-gray-500 px-4 uppercase tracking-[0.2em] font-black">Digital Signature</p>
-                                    <div className="p-8 rounded-[40px] bg-white/[0.03] border border-white/5 text-center shadow-xl backdrop-blur-sm">
-                                        <div className="w-24 h-24 rounded-full mx-auto mb-6 bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-4xl font-black text-white shadow-glow-lg border-4 border-white/10">
+                                    <p className="text-[13px] text-[var(--foreground-muted)] px-4 uppercase tracking-[0.2em] font-black">Digital Signature</p>
+                                    <div className="p-8 rounded-[40px] bg-[var(--surface-low)] border border-[var(--border)] text-center shadow-xl backdrop-blur-sm">
+                                        <div className="w-24 h-24 rounded-full mx-auto mb-6 bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-4xl font-black text-white shadow-glow-lg border-4 border-[var(--foreground)]/10">
                                             {String((user?.profile as any)?.display_name || 'U').charAt(0)}
                                         </div>
-                                        <h4 className="text-2xl font-black mb-1 text-white tracking-tight">{(user?.profile as any)?.display_name || 'Campus Student'}</h4>
-                                        <p className="text-[14px] text-campus-muted mb-8 font-medium">{user?.email}</p>
+                                        <h4 className="text-2xl font-black mb-1 text-[var(--foreground)] tracking-tight">{(user?.profile as any)?.display_name || 'Campus Student'}</h4>
+                                        <p className="text-[14px] text-[var(--foreground-muted)] mb-8 font-medium">{user?.email}</p>
                                         <button className="w-full py-4 bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-glow hover:shadow-glow-lg">Update Profile Identity</button>
+                                    </div>
+
+                                    <div className="mt-6 space-y-2 px-2">
+                                        <p className="text-[13px] text-[var(--foreground-muted)] px-4 uppercase tracking-[0.2em] font-black">Quick Access</p>
+                                        <div className="bg-[var(--surface-low)] rounded-3xl overflow-hidden border border-[var(--border)] divide-y divide-[var(--border)]">
+                                            {[
+                                                { label: 'Language', path: '/app/settings/language', icon: '🌐' },
+                                                { label: 'Blocked Users', path: '/app/settings/blocked', icon: '🚫' },
+                                                { label: 'Notification History', path: '/app/settings/notifications', icon: '🔔' },
+                                                { label: 'Delete Account', path: '/app/settings/delete-account', icon: '⚠️' },
+                                            ].map(item => (
+                                                <button
+                                                    key={item.path}
+                                                    onClick={() => navigate(item.path)}
+                                                    className="w-full px-5 py-4 flex items-center gap-4 active:bg-[var(--surface)] transition-colors"
+                                                >
+                                                    <span className="text-xl">{item.icon}</span>
+                                                    <span className="flex-1 text-left text-[15px] font-semibold text-[var(--foreground)]">{item.label}</span>
+                                                    <ChevronRight size={18} className="text-[var(--foreground-muted)]" />
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             )}

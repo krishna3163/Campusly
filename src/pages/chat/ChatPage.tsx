@@ -32,8 +32,19 @@ import {
     Phone,
     Video,
     Sparkles,
-    MessageCircle
+    MessageCircle,
+    Smile,
+    MoreVertical,
+    Reply,
+    Copy,
+    Trash,
+    Edit3,
+    Heart,
+    ThumbsUp,
+    ThumbsDown,
+    ChevronRight,
 } from 'lucide-react';
+import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 
 
 
@@ -71,9 +82,11 @@ export default function ChatPage() {
     const [pollQuestion, setPollQuestion] = useState('');
     const [pollOptions, setPollOptions] = useState(['', '']);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [slowModeTime, setSlowModeTime] = useState<number>(0);
+    const [slowModeTime, setSlowModeTime] = useState(0);
     const longPressTimerRef = useRef<any>(null);
     const slowModeIntervalRef = useRef<any>(null);
+    const [disappearingTimer, setDisappearingTimer] = useState<number | null>(null);
+    const [isMuted, setIsMuted] = useState(false);
     const [isViewOnce, setIsViewOnce] = useState(false);
     const [isSending] = useState(false);
     const [friendship, setFriendship] = useState('none');
@@ -81,6 +94,7 @@ export default function ChatPage() {
     const [channelSettings, setChannelSettings] = useState<ChannelSettingsType | null>(null);
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const { showToast } = useAppStore();
 
 
@@ -102,6 +116,13 @@ export default function ChatPage() {
 
                 if (conv) {
                     setConversation(conv as Conversation);
+                    setChatName(conv.name || '');
+                    setChatAvatar(conv.avatar_url || '');
+                    setDisappearingTimer(conv.disappearing_timer || null);
+
+                    const myMember = conv.members?.find((m: any) => m.user_id === user?.id);
+                    setIsMuted(myMember?.muted || false);
+
                     if ((conv as any).type === 'private') {
                         const { data: members } = await insforge.database
                             .from('conversation_members')
@@ -283,7 +304,8 @@ export default function ChatPage() {
                     is_view_once: isViewOnce,
                     is_viewed: false,
                     reply_to: replyTo?.id,
-                    encryption_type: 'campusly_v1'
+                    encryption_type: 'campusly_v1',
+                    reactions: {}
                 })
                 .select()
                 .single();
@@ -301,6 +323,85 @@ export default function ChatPage() {
             console.error('Error sending message:', err);
             setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
         }
+    };
+
+    const handleReaction = async (messageId: string, emoji: string) => {
+        const msg = messages.find(m => m.id === messageId);
+        if (!msg || !user?.id) return;
+
+        const currentReactions = msg.reactions || {};
+        const userReactions = currentReactions[emoji] || [];
+
+        let newReactions = { ...currentReactions };
+        if (userReactions.includes(user.id)) {
+            newReactions[emoji] = userReactions.filter(id => id !== user.id);
+            if (newReactions[emoji].length === 0) delete newReactions[emoji];
+        } else {
+            // Remove user from any other emoji if they can only react once (common in iMessage)
+            Object.keys(newReactions).forEach(key => {
+                newReactions[key] = newReactions[key].filter(id => id !== user.id);
+                if (newReactions[key].length === 0) delete newReactions[key];
+            });
+            newReactions[emoji] = [...userReactions, user.id];
+        }
+
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: newReactions } : m));
+        setShowReactionPickerFor(null);
+
+        const { error } = await insforge.database.from('messages').update({ reactions: newReactions }).eq('id', messageId);
+        if (error) {
+            setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: currentReactions } : m));
+        }
+    };
+
+    const toggleStar = async (messageId: string) => {
+        const msg = messages.find(m => m.id === messageId);
+        if (!msg || !user?.id) return;
+
+        const currentStarredBy = msg.starred_by || [];
+        const isStarred = currentStarredBy.includes(user.id);
+        const newStarredBy = isStarred
+            ? currentStarredBy.filter(id => id !== user.id)
+            : [...currentStarredBy, user.id];
+
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, starred_by: newStarredBy } : m));
+        setOpenMessageMenuId(null);
+
+        const { error } = await insforge.database.from('messages').update({ starred_by: newStarredBy }).eq('id', messageId);
+        if (error) {
+            setMessages(prev => prev.map(m => m.id === messageId ? { ...m, starred_by: currentStarredBy } : m));
+            showToast('Failed to star message', 'error');
+        }
+    };
+
+    const deleteMessage = async (messageId: string, everyone = false) => {
+        if (everyone && !window.confirm('Delete for everyone?')) return;
+
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+        setOpenMessageMenuId(null);
+
+        if (everyone) {
+            await insforge.database.from('messages').update({ is_deleted: true, content: 'Message deleted' }).eq('id', messageId);
+        } else {
+            showToast('Message removed', 'info');
+        }
+    };
+
+    const toggleDisappearingMessages = async (timer: number | null) => {
+        if (!chatId) return;
+        setDisappearingTimer(timer);
+        const { error } = await ConversationService.setDisappearingMessages(chatId, timer);
+        if (error) showToast('Failed to update timer', 'error');
+        else showToast(timer ? `Messages will disappear after ${timer}s` : 'Disappearing messages off', 'info');
+    };
+
+    const toggleMute = async () => {
+        if (!chatId || !user?.id) return;
+        const newState = !isMuted;
+        setIsMuted(newState);
+        const { error } = await ConversationService.muteNotifications(chatId, user.id, newState ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null);
+        if (error) setIsMuted(!newState);
+        else showToast(newState ? 'Notifications muted' : 'Notifications unmuted', 'info');
     };
 
     useEffect(() => {
@@ -427,7 +528,10 @@ export default function ChatPage() {
 
                 <div className="flex items-center gap-4">
                     {otherUserId && (
-                        <Phone size={20} strokeWidth={1.5} className="text-[#007AFF] cursor-pointer" onClick={() => triggerCall('audio')} />
+                        <>
+                            <Video size={20} strokeWidth={1.5} className="text-[#007AFF] cursor-pointer" onClick={() => triggerCall('video')} />
+                            <Phone size={20} strokeWidth={1.5} className="text-[#007AFF] cursor-pointer" onClick={() => triggerCall('audio')} />
+                        </>
                     )}
                     <Info size={20} strokeWidth={1.5} className="text-[#007AFF] cursor-pointer" onClick={() => setIsInfoOpen(true)} />
                 </div>
@@ -446,51 +550,191 @@ export default function ChatPage() {
                         <p className="text-[13px] mt-1 text-[#8E8E93]">End-to-End Encrypted</p>
                     </div>
                 ) : (
-                    messages.filter(m => !searchQuery || m.content?.toLowerCase().includes(searchQuery.toLowerCase())).map((msg, idx) => {
-                        const isMe = msg.sender_id === user?.id;
-                        const showAvatar = !isMe && (idx === 0 || messages[idx - 1].sender_id !== msg.sender_id);
+                    (() => {
+                        const filteredMessages = messages.filter(m => !searchQuery || m.content?.toLowerCase().includes(searchQuery.toLowerCase()));
+                        const groups: { date: string, messages: Message[] }[] = [];
 
-                        return (
-                            <SwipeReply key={msg.id} onReply={() => setReplyTo(msg)}>
-                                <div className={`flex items-end gap-2 mb-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                    {!isMe && (
-                                        <div className={`w-7 h-7 rounded-full bg-[#F2F2F7] overflow-hidden flex-shrink-0 mb-1 ${!showAvatar ? 'opacity-0' : 'opacity-100'}`}>
-                                            {msg.sender?.avatar_url ? <img src={msg.sender.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-[#E5E5EA] text-[#8E8E93]">{msg.sender?.display_name?.charAt(0)}</div>}
-                                        </div>
-                                    )}
+                        filteredMessages.forEach((msg) => {
+                            const date = new Date(msg.created_at).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+                            const lastGroup = groups[groups.length - 1];
+                            if (lastGroup && lastGroup.date === date) {
+                                lastGroup.messages.push(msg);
+                            } else {
+                                groups.push({ date, messages: [msg] });
+                            }
+                        });
 
-                                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}>
-                                        <div className={`${isMe ? 'bubble-sent' : 'bubble-received'} relative`}>
-                                            {msg.is_view_once ? (
-                                                msg.is_viewed ? (
-                                                    <ExpiredMedia type={msg.type as 'image' | 'video'} />
-                                                ) : (
-                                                    <ViewOnceMedia
-                                                        url={msg.media_url!}
-                                                        type={msg.type as 'image' | 'video'}
-                                                        onViewed={() => handleMediaViewed(msg.id)}
-                                                    />
-                                                )
-                                            ) : (
+                        return groups.map((group) => (
+                            <div key={group.date} className="flex flex-col gap-1">
+                                <div className="text-center my-6">
+                                    <span className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-wider">{group.date}</span>
+                                </div>
+                                {group.messages.map((msg, idx) => {
+                                    const isMe = msg.sender_id === user?.id;
+                                    const nextMsg = group.messages[idx + 1];
+                                    const prevMsg = group.messages[idx - 1];
+
+                                    const isLastInSequence = !nextMsg || nextMsg.sender_id !== msg.sender_id;
+                                    const isFirstInSequence = !prevMsg || prevMsg.sender_id !== msg.sender_id;
+                                    const showAvatar = !isMe && isLastInSequence;
+
+                                    // Bubble style logic
+                                    let bubbleClass = isMe ? 'bubble-sent' : 'bubble-received';
+                                    if (!isLastInSequence) {
+                                        bubbleClass = isMe ? 'bubble-sent-no-tail' : 'bubble-received-no-tail';
+                                    }
+
+                                    const isMenuOpen = openMessageMenuId === msg.id;
+                                    const isReactionOpen = showReactionPickerFor === msg.id;
+
+                                    return (
+                                        <div key={msg.id} className="relative">
+                                            <SwipeReply onReply={() => setReplyTo(msg)}>
+                                                <div
+                                                    className={`flex items-end gap-2 ${isLastInSequence ? 'mb-2' : 'mb-0.5'} ${isMe ? 'justify-end' : 'justify-start'}`}
+                                                    onContextMenu={(e) => {
+                                                        e.preventDefault();
+                                                        setOpenMessageMenuId(msg.id);
+                                                    }}
+                                                >
+                                                    {!isMe && (
+                                                        <div className={`w-7 h-7 rounded-full bg-[#F2F2F7] overflow-hidden flex-shrink-0 ${!showAvatar ? 'opacity-0' : 'opacity-100'} transition-opacity`}>
+                                                            {msg.sender?.avatar_url ? (
+                                                                <img src={msg.sender.avatar_url} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-[#E5E5EA] text-[#8E8E93]">
+                                                                    {msg.sender?.display_name?.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}>
+                                                        {isFirstInSequence && !isMe && conversation?.type !== 'private' && (
+                                                            <span className="text-[11px] font-medium text-[#8E8E93] ml-3 mb-0.5">
+                                                                {msg.sender?.display_name}
+                                                            </span>
+                                                        )}
+                                                        <div
+                                                            className={`${bubbleClass} relative group transition-all duration-200 ${isMenuOpen || isReactionOpen ? 'scale-[1.02] shadow-xl z-20' : ''}`}
+                                                            onClick={() => (isMenuOpen || isReactionOpen) ? (setOpenMessageMenuId(null), setShowReactionPickerFor(null)) : null}
+                                                        >
+                                                            {msg.reply_to && (
+                                                                <div className="mb-2 p-2 bg-black/5 rounded-lg border-l-2 border-current opacity-60 text-[13px] truncate">
+                                                                    {messages.find(m => m.id === msg.reply_to)?.content || 'Original message'}
+                                                                </div>
+                                                            )}
+                                                            {msg.is_view_once ? (
+                                                                msg.is_viewed ? (
+                                                                    <ExpiredMedia type={msg.type as 'image' | 'video'} />
+                                                                ) : (
+                                                                    <ViewOnceMedia
+                                                                        url={msg.media_url!}
+                                                                        type={msg.type as 'image' | 'video'}
+                                                                        onViewed={() => handleMediaViewed(msg.id)}
+                                                                    />
+                                                                )
+                                                            ) : (
+                                                                <>
+                                                                    {msg.type === 'image' && msg.media_url && (
+                                                                        <img src={msg.media_url} className="rounded-xl mb-1 max-h-80 object-cover w-full cursor-pointer shadow-sm hover:opacity-95 transition-opacity" onClick={() => window.open(msg.media_url, '_blank')} />
+                                                                    )}
+                                                                    {msg.type === 'video' && msg.media_url && (
+                                                                        <video src={msg.media_url} controls className="rounded-xl mb-1 max-h-80 object-cover w-full shadow-sm" />
+                                                                    )}
+                                                                    {(msg.type === 'voice_note' || msg.type === 'audio') && (
+                                                                        <VoiceNotePlayer content={msg.content} isMe={isMe} />
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                            {msg.type !== 'voice_note' && msg.type !== 'audio' && (
+                                                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                                                            )}
+
+                                                            {/* Reactions display */}
+                                                            {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                                                                <div className={`absolute -bottom-3 ${isMe ? 'right-2' : 'left-2'} flex gap-1 bg-white shadow-md rounded-full px-2 py-0.5 border border-[#E5E5EA] z-10 animate-slide-up`}>
+                                                                    {Object.entries(msg.reactions).map(([emoji, users]: [string, any]) => (
+                                                                        users.length > 0 && (
+                                                                            <span key={emoji} className="text-[12px] flex items-center gap-1">
+                                                                                {emoji} <span className="text-[10px] text-[#8E8E93]">{users.length}</span>
+                                                                            </span>
+                                                                        )
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            {msg.is_edited && (
+                                                                <span className="text-[9px] opacity-50 block text-right mt-1 italic">edited</span>
+                                                            )}
+                                                        </div>
+
+                                                        {isLastInSequence && isMe && idx === group.messages.length - 1 && (
+                                                            <span className="text-[11px] text-[#8E8E93] mt-1 mr-1 transition-all animate-fade-in">
+                                                                {msg.status === 'sending' ? 'Sending...' : msg.status === 'error' ? 'Not Delivered' : 'Delivered'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </SwipeReply>
+
+                                            {/* Quick Reaction Bar (Tap/Long Press) */}
+                                            {isMenuOpen && (
                                                 <>
-                                                    {msg.type === 'image' && msg.media_url && <img src={msg.media_url} className="rounded-xl mb-1 max-h-64 object-cover w-full cursor-pointer shadow-sm" onClick={() => window.open(msg.media_url, '_blank')} />}
-                                                    {msg.type === 'video' && msg.media_url && <video src={msg.media_url} controls className="rounded-xl mb-1 max-h-64 object-cover w-full shadow-sm" />}
+                                                    <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm" onClick={() => setOpenMessageMenuId(null)} />
+                                                    <div className={`absolute z-50 ${isMe ? 'right-0' : 'left-8'} -top-12 animate-slide-up`}>
+                                                        <div className="bg-white/90 backdrop-blur-xl border border-[#E5E5EA] rounded-full p-1.5 flex gap-1.5 shadow-2xl">
+                                                            {['❤️', '👍', '👎', '😂', '‼️', '❓'].map(emoji => (
+                                                                <button
+                                                                    key={emoji}
+                                                                    onClick={() => handleReaction(msg.id, emoji)}
+                                                                    className="w-9 h-9 flex items-center justify-center text-xl hover:bg-[#F2F2F7] rounded-full transition-colors active:scale-125"
+                                                                >
+                                                                    {emoji}
+                                                                </button>
+                                                            ))}
+                                                            <button
+                                                                onClick={() => { setShowReactionPickerFor(msg.id); setOpenMessageMenuId(null); }}
+                                                                className="w-9 h-9 flex items-center justify-center text-[#8E8E93] hover:bg-[#F2F2F7] rounded-full"
+                                                            >
+                                                                <Plus size={20} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Context Actions */}
+                                                        <div className={`mt-3 bg-white/95 backdrop-blur-xl border border-[#E5E5EA] rounded-2xl shadow-2xl overflow-hidden divide-y divide-[#F2F2F7] min-w-[180px] ${isMe ? 'ml-auto' : ''}`}>
+                                                            <button onClick={() => setReplyTo(msg)} className="w-full flex items-center justify-between px-4 py-3 text-[15px] hover:bg-[#F2F2F7] active:bg-[#E5E5EA] transition-colors">
+                                                                <span>Reply</span>
+                                                                <Reply size={18} className="text-[#007AFF]" />
+                                                            </button>
+                                                            {isMe && (
+                                                                <button onClick={() => { setEditingMessage(msg); setNewMessage(msg.content || ''); setOpenMessageMenuId(null); }} className="w-full flex items-center justify-between px-4 py-3 text-[15px] hover:bg-[#F2F2F7] active:bg-[#E5E5EA] transition-colors">
+                                                                    <span>Edit</span>
+                                                                    <Edit3 size={18} className="text-[#007AFF]" />
+                                                                </button>
+                                                            )}
+                                                            <button onClick={() => { navigator.clipboard.writeText(msg.content || ''); setOpenMessageMenuId(null); showToast('Copied to clipboard', 'info'); }} className="w-full flex items-center justify-between px-4 py-3 text-[15px] hover:bg-[#F2F2F7] active:bg-[#E5E5EA] transition-colors">
+                                                                <span>Copy</span>
+                                                                <Copy size={18} className="text-[#007AFF]" />
+                                                            </button>
+                                                            <button onClick={() => toggleStar(msg.id)} className="w-full flex items-center justify-between px-4 py-3 text-[15px] hover:bg-[#F2F2F7] active:bg-[#E5E5EA] transition-colors">
+                                                                <span>{msg.starred_by?.includes(user?.id || '') ? 'Unstar' : 'Star'}</span>
+                                                                <Star size={18} className={msg.starred_by?.includes(user?.id || '') ? 'text-yellow-400 fill-yellow-400' : 'text-[#8E8E93]'} />
+                                                            </button>
+                                                            <button onClick={() => deleteMessage(msg.id, isMe)} className="w-full flex items-center justify-between px-4 py-3 text-[15px] text-[#FF3B30] hover:bg-[#FF3B30]/5 active:bg-[#FF3B30]/10 transition-colors">
+                                                                <span>Delete</span>
+                                                                <Trash size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </>
                                             )}
-                                            <p className="whitespace-pre-wrap">{msg.content}</p>
                                         </div>
-
-                                        {/* Optional Timestamp/Status */}
-                                        {idx === messages.length - 1 && isMe && (
-                                            <span className="text-[11px] text-[#8E8E93] mt-1 mr-1">
-                                                {msg.status === 'sending' ? 'Sending...' : msg.status === 'error' ? 'Not Delivered' : 'Delivered'}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </SwipeReply>
-                        );
-                    })
+                                    );
+                                })}
+                            </div>
+                        ));
+                    })()
                 )}
                 <div ref={messagesEndRef} className="h-4" />
             </div>
@@ -508,6 +752,54 @@ export default function ChatPage() {
                 )}
 
                 <div className="flex items-center gap-2 px-2">
+                    <div className="relative">
+                        <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-1 text-[#007AFF] active:opacity-50">
+                            <Smile size={28} strokeWidth={1.5} />
+                        </button>
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-12 left-0 z-[60] shadow-2xl animate-slide-up">
+                                <div className="fixed inset-0" onClick={() => setShowEmojiPicker(false)} />
+                                <div className="relative">
+                                    {(() => {
+                                        try {
+                                            const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+                                            return (
+                                                <EmojiPicker
+                                                    onEmojiClick={(emojiData) => {
+                                                        setNewMessage(prev => prev + emojiData.emoji);
+                                                        setShowEmojiPicker(false);
+                                                        inputRef.current?.focus();
+                                                    }}
+                                                    autoFocusSearch={false}
+                                                    theme={isDark ? EmojiTheme.DARK : EmojiTheme.LIGHT}
+                                                    width={320}
+                                                    height={400}
+                                                />
+                                            );
+                                        } catch {
+                                            return (
+                                                <div className="w-[320px] h-[400px] bg-white rounded-2xl border border-[#E5E5EA] p-4 overflow-y-auto">
+                                                    <p className="text-[13px] text-[#8E8E93] mb-3">Quick Emojis</p>
+                                                    <div className="grid grid-cols-8 gap-2">
+                                                        {['😀', '😂', '🥰', '😎', '🤔', '👍', '❤️', '🔥', '🎉', '💯', '😭', '🙏', '✨', '😊', '🤣', '😍', '💪', '👏', '🙌', '😘', '🥳', '😤', '🤝', '💀', '😈', '🫡', '🤗', '😇'].map(e => (
+                                                            <button
+                                                                key={e}
+                                                                onClick={() => { setNewMessage(prev => prev + e); setShowEmojiPicker(false); }}
+                                                                className="text-2xl hover:bg-[#F2F2F7] rounded-lg p-1 active:scale-125 transition-transform"
+                                                            >
+                                                                {e}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <button onClick={() => fileInputRef.current?.click()} className="p-1 text-[#007AFF] active:opacity-50">
                         <Plus size={28} strokeWidth={1.5} />
                     </button>
@@ -516,12 +808,17 @@ export default function ChatPage() {
                         <input
                             ref={inputRef}
                             type="text"
-                            placeholder="iMessage"
+                            placeholder={editingMessage ? "Edit message" : "iMessage"}
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
                             className="w-full bg-transparent outline-none text-[17px] text-black placeholder:text-[#BBB]"
                         />
+                        {editingMessage && (
+                            <button onClick={() => { setEditingMessage(null); setNewMessage(''); }} className="mr-2 text-[#8E8E93]">
+                                <X size={18} />
+                            </button>
+                        )}
                         {newMessage.trim() ? (
                             <button onClick={handleSend} className="bg-[#007AFF] text-white p-1 rounded-full ml-1 active:opacity-70 transition-opacity">
                                 <Send size={18} strokeWidth={3} fill="currentColor" />
@@ -560,15 +857,71 @@ export default function ChatPage() {
                             <h4 className="text-[20px] font-bold">{chatName}</h4>
                         </div>
 
+                        {/* Search in Chat */}
+                        <div className="mt-6 px-4">
+                            <div className="ios-search-bar !mx-0">
+                                <Search size={18} className="text-[#8E8E93]" />
+                                <input
+                                    type="text"
+                                    placeholder="Search in Conversation"
+                                    className="ios-search-input"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
                         <div className="mt-8 bg-white border-y border-[#E5E5EA] divide-y divide-[#E5E5EA]">
                             <button className="w-full flex items-center justify-between p-4 px-6 text-[17px] active:bg-[#F2F2F7] transition-colors">
                                 <span className="text-black">Media, Links, and Docs</span>
-                                <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1.5 1.5L6.5 6.5L1.5 11.5" stroke="#C6C6C8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                <div className="flex items-center gap-1 text-[#8E8E93]">
+                                    <span>{messages.filter(m => m.type === 'image' || m.type === 'video').length}</span>
+                                    <ChevronRight size={20} />
+                                </div>
                             </button>
                             <button className="w-full flex items-center justify-between p-4 px-6 text-[17px] active:bg-[#F2F2F7] transition-colors">
                                 <span className="text-black">Starred Messages</span>
-                                <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1.5 1.5L6.5 6.5L1.5 11.5" stroke="#C6C6C8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                <div className="flex items-center gap-1 text-[#8E8E93]">
+                                    <span>{messages.filter(m => m.starred_by?.includes(user?.id || '')).length}</span>
+                                    <ChevronRight size={20} />
+                                </div>
                             </button>
+                            <div className="p-4 px-6 flex items-center justify-between text-[17px]">
+                                <span className="text-black">Disappearing Messages</span>
+                                <select
+                                    value={disappearingTimer || 0}
+                                    onChange={(e) => toggleDisappearingMessages(e.target.value === '0' ? null : parseInt(e.target.value))}
+                                    className="bg-transparent text-[#007AFF] outline-none text-right font-medium"
+                                >
+                                    <option value="0">Off</option>
+                                    <option value="86400">24 Hours</option>
+                                    <option value="604800">7 Days</option>
+                                    <option value="7776000">90 Days</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 bg-white border-y border-[#E5E5EA] divide-y divide-[#E5E5EA]">
+                            <button onClick={toggleMute} className="w-full flex items-center justify-between p-4 px-6 text-[17px] active:bg-[#F2F2F7] transition-colors">
+                                <span className="text-black">{isMuted ? 'Unmute' : 'Mute'}</span>
+                                <span className="text-[#8E8E93]">{isMuted ? 'On' : 'Off'}</span>
+                            </button>
+                            <button className="w-full flex items-center justify-between p-4 px-6 text-[17px] active:bg-[#F2F2F7] transition-colors">
+                                <span className="text-black">Save to Camera Roll</span>
+                                <span className="text-[#8E8E93]">Always</span>
+                            </button>
+                        </div>
+
+                        {(conversation?.type === 'group' || conversation?.type === 'channel') && (
+                            <div className="mt-8 bg-white border-y border-[#E5E5EA]">
+                                <button onClick={() => navigate(`/app/chats/${chatId}/settings`)} className="w-full flex items-center justify-between p-4 px-6 text-[17px] text-[#007AFF] font-medium active:bg-[#F2F2F7] transition-colors">
+                                    <span>Group Settings</span>
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="mt-8 bg-white border-y border-[#E5E5EA]">
                             <button onClick={clearChat} className="w-full text-left p-4 px-6 text-[17px] text-[#FF3B30] active:bg-[#F2F2F7]">
                                 Clear Chat History
                             </button>
@@ -582,6 +935,72 @@ export default function ChatPage() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function VoiceNotePlayer({ content, isMe }: { content?: string; isMe: boolean }) {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const timerRef = useRef<any>(null);
+    const duration = 12; // simulated seconds
+
+    const togglePlay = () => {
+        if (isPlaying) {
+            clearInterval(timerRef.current);
+            setIsPlaying(false);
+        } else {
+            setIsPlaying(true);
+            timerRef.current = setInterval(() => {
+                setProgress(prev => {
+                    if (prev >= 100) {
+                        clearInterval(timerRef.current);
+                        setIsPlaying(false);
+                        return 0;
+                    }
+                    return prev + (100 / (duration * 10));
+                });
+            }, 100);
+        }
+    };
+
+    const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+    return (
+        <div className="flex items-center gap-3 min-w-[180px] py-1">
+            <button
+                onClick={togglePlay}
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-90 ${isMe ? 'bg-white/20 text-white' : 'bg-[#007AFF]/15 text-[#007AFF]'}`}
+            >
+                {isPlaying ? (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="1" width="4" height="12" rx="1" /><rect x="9" y="1" width="4" height="12" rx="1" /></svg>
+                ) : (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><polygon points="2,0 14,7 2,14" /></svg>
+                )}
+            </button>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 h-5">
+                    {Array.from({ length: 20 }).map((_, i) => {
+                        const h = [0.3, 0.5, 0.8, 0.4, 1, 0.6, 0.9, 0.3, 0.7, 0.5, 0.8, 0.4, 1, 0.6, 0.3, 0.7, 0.5, 0.9, 0.4, 0.6][i];
+                        const filled = (i / 20) * 100 <= progress;
+                        return (
+                            <div
+                                key={i}
+                                className="flex-1 rounded-full transition-all duration-75"
+                                style={{
+                                    height: `${h * 100}%`,
+                                    backgroundColor: filled
+                                        ? (isMe ? 'rgba(255,255,255,0.9)' : '#007AFF')
+                                        : (isMe ? 'rgba(255,255,255,0.3)' : '#C7C7CC')
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+                <span className={`text-[11px] mt-0.5 block ${isMe ? 'text-white/60' : 'text-[#8E8E93]'}`}>
+                    {isPlaying ? fmt((progress / 100) * duration) : fmt(duration)}
+                </span>
+            </div>
         </div>
     );
 }

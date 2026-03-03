@@ -66,21 +66,29 @@ export const LeetCodeService = {
 
     async getFriendsProfiles(userId: string) {
         try {
-            // Get friends first
-            const { data: friends } = await insforge.database
-                .from('friends')
-                .select('friend_id')
-                .eq('user_id', userId);
+            // Get friends from friendships table (user can be in either column)
+            const [{ data: friends1 }, { data: friends2 }] = await Promise.all([
+                insforge.database
+                    .from('friendships')
+                    .select('user_id_2')
+                    .eq('user_id_1', userId),
+                insforge.database
+                    .from('friendships')
+                    .select('user_id_1')
+                    .eq('user_id_2', userId)
+            ]);
 
-            if (!friends || friends.length === 0) return [];
+            const ids = [
+                ...(friends1 || []).map(f => f.user_id_2),
+                ...(friends2 || []).map(f => f.user_id_1)
+            ];
 
-            const ids = friends.map(f => f.friend_id);
+            if (ids.length === 0) return [];
 
             const { data, error } = await insforge.database
                 .from('leetcode_profiles')
                 .select('*, profile:profiles!user_id(display_name, avatar_url)')
                 .in('user_id', ids)
-                .eq('privacy_mode', 'public') // or 'friends' if checked
                 .order('total_solved', { ascending: false });
 
             if (error) throw error;

@@ -74,25 +74,22 @@ export const StoryEditor: React.FC<StoryEditorProps> = ({
         setShowStickerSelector(false);
     };
 
+    const [textContent, setTextContent] = useState('');
+
     const handlePost = async () => {
-        // Upload logic would go here, then:
         const metadata: StoryMetadata = {
+            bg_color: mediaType === 'text' ? '#7C3AED' : undefined,
             stickers,
-            drawing_data: canvasRef.current?.toDataURL(),
-            branch_tag: currentUser.branch,
         };
 
-        const result = await WhatsappService.postStory({
-            userId: currentUser.id,
-            campusId: currentUser.campus_id,
+        // Pass back to parent to handle real upload and db entry
+        onPost({
             type: mediaType,
-            mediaUrl: previewUrl || '',
+            content: mediaType === 'text' ? textContent : '',
             metadata,
             visibility,
             isViewOnce
         });
-
-        if (result.story) onPost(result.story);
     };
 
     return (
@@ -128,6 +125,8 @@ export const StoryEditor: React.FC<StoryEditorProps> = ({
                         <textarea
                             className="bg-transparent text-white text-3xl font-black text-center focus:outline-none placeholder:text-white/30 w-full resize-none"
                             placeholder="Type something..."
+                            value={textContent}
+                            onChange={(e) => setTextContent(e.target.value)}
                             autoFocus
                         />
                     </div>

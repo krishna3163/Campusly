@@ -34,7 +34,7 @@ export default function MainLayout() {
     const isChatScreen = location.pathname.startsWith('/app/chats/') && location.pathname !== '/app/chats' && location.pathname !== '/app/chats/';
 
     return (
-        <div className="flex flex-col h-screen bg-[#F2F2F7] text-black overflow-hidden font-sans select-none">
+        <div className="flex flex-col h-screen bg-[var(--background)] text-[var(--foreground)] overflow-hidden font-sans select-none">
             {/* Header */}
             {!isChatScreen && (
                 <header className="ios-header safe-top">
@@ -46,16 +46,16 @@ export default function MainLayout() {
                         onClick={() => setIsNotificationsOpen(true)}
                         className="p-2 relative active:opacity-50 transition-opacity"
                     >
-                        <Bell size={22} strokeWidth={1.5} className="text-[#000000]" />
+                        <Bell size={22} strokeWidth={1.5} className="text-[var(--foreground)]" />
                         {notifications.length > 0 && (
-                            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#FF3B30] border-2 border-white rounded-full"></span>
+                            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#FF3B30] border-2 border-[var(--surface)] rounded-full"></span>
                         )}
                     </button>
                 </header>
             )}
 
             {/* Main Content Area */}
-            <main className={`flex-1 overflow-y-auto custom-scrollbar relative bg-white ${!isChatScreen ? 'pb-20' : ''}`}>
+            <main className={`flex-1 overflow-y-auto custom-scrollbar relative bg-[var(--surface)] ${!isChatScreen ? 'pb-20' : ''}`}>
                 <Outlet />
                 <Toast />
             </main>
@@ -84,11 +84,11 @@ export default function MainLayout() {
             {isNotificationsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm animate-fade-in flex items-end justify-center" onClick={() => setIsNotificationsOpen(false)}>
                     <div
-                        className="w-full max-w-[430px] bg-[#F2F2F7] rounded-t-[20px] pb-10 animate-slide-up"
+                        className="w-full max-w-[430px] bg-[var(--background)] rounded-t-[20px] pb-10 animate-slide-up"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="w-10 h-1.5 bg-[#BCBCC0] rounded-full mx-auto my-3" />
-                        <div className="px-5 py-4 flex justify-between items-center bg-white border-b border-[#E5E5EA]">
+                        <div className="w-10 h-1.5 bg-[var(--border)] rounded-full mx-auto my-3" />
+                        <div className="px-5 py-4 flex justify-between items-center bg-[var(--surface)] border-b border-[var(--border)]">
                             <h3 className="text-[17px] font-bold">Notifications</h3>
                             <button onClick={() => setIsNotificationsOpen(false)} className="ios-btn-blue text-[17px] font-semibold">Done</button>
                         </div>
@@ -100,7 +100,7 @@ export default function MainLayout() {
                                     <div key={n.id} className="ios-card rounded-2xl mb-2 border-none">
                                         <div className="flex justify-between items-start">
                                             <div>
-                                                <p className="ios-headline text-[#000000]">{n.title}</p>
+                                                <p className="ios-headline text-[var(--foreground)]">{n.title}</p>
                                                 <p className="ios-caption mt-1">{n.time}</p>
                                             </div>
                                             {!n.read && <div className="w-2.5 h-2.5 rounded-full bg-[#007AFF]"></div>}

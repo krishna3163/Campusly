@@ -179,15 +179,25 @@ class TelemetrySystem {
             }));
 
             // Use navigator.sendBeacon if supported (Section 5)
+            // Wrap in try-catch as sendBeacon can be blocked by ad-blockers
+            let sent = false;
             if (navigator.sendBeacon) {
-                const blob = new Blob([JSON.stringify(sanitized)], { type: 'application/json' });
-                const baseUrl = import.meta.env.VITE_INSFORGE_BASE_URL;
-                navigator.sendBeacon(`${baseUrl}/functions/v1/log-error`, blob);
-            } else {
-                await insforge.functions.invoke('log-error', { body: sanitized });
+                try {
+                    const blob = new Blob([JSON.stringify(sanitized)], { type: 'application/json' });
+                    const baseUrl = import.meta.env.VITE_INSFORGE_BASE_URL;
+                    if (baseUrl) {
+                        sent = navigator.sendBeacon(`${baseUrl}/functions/v1/log-error`, blob);
+                    }
+                } catch { /* Silently ignore blocked requests */ }
+            }
+
+            if (!sent) {
+                try {
+                    await insforge.functions.invoke('log-error', { body: sanitized });
+                } catch { /* Silently ignore if functions endpoint fails */ }
             }
         } catch (err) {
-            this.originalConsoleError('[Telemetry Flush Failed]', err);
+            // Don't use console.error to avoid recursive capture
         }
     }
 

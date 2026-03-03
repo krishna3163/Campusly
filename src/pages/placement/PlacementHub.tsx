@@ -91,7 +91,7 @@ export default function PlacementHub() {
     };
 
     return (
-        <div className="h-full bg-campus-darker overflow-y-auto px-6 py-10">
+        <div className="h-full bg-[var(--background)] overflow-y-auto px-6 py-10">
             <div className="max-w-7xl mx-auto">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf" />
 
@@ -101,8 +101,8 @@ export default function PlacementHub() {
                             <Zap size={12} className="fill-current" />
                             <span>Recruitment Season 2026</span>
                         </div>
-                        <h1 className="text-4xl font-black text-white leading-tight">Your Career Gateway.</h1>
-                        <p className="text-campus-muted text-lg mt-2">Connecting students with top-tier opportunities and alumni wisdom.</p>
+                        <h1 className="text-4xl font-black text-[var(--foreground)] leading-tight">Your Career Gateway.</h1>
+                        <p className="text-[var(--foreground-muted)] text-lg mt-2">Connecting students with top-tier opportunities and alumni wisdom.</p>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -110,11 +110,11 @@ export default function PlacementHub() {
                             <Plus size={18} strokeWidth={2} />
                             <span className="text-sm font-bold">Add Job</span>
                         </button>
-                        <button onClick={loadSmartJobs} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-brand-500/10 transition-all text-white border-brand-500/20">
+                        <button onClick={loadSmartJobs} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-brand-500/10 transition-all text-[var(--foreground)] border-brand-500/20">
                             <Zap size={18} className="text-brand-400" />
                             <span className="text-sm font-bold uppercase tracking-widest italic">Sync Jobs</span>
                         </button>
-                        <button onClick={() => window.open('https://linkedin.com/jobs', '_blank')} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-white/5 transition-all text-white">
+                        <button onClick={() => window.open('https://linkedin.com/jobs', '_blank')} className="glass-card flex items-center gap-2 px-5 py-3 hover:bg-white/5 transition-all text-[var(--foreground)]">
                             <Globe size={18} className="text-blue-500" />
                             <span className="text-sm font-bold">External Jobs</span>
                         </button>
@@ -129,7 +129,7 @@ export default function PlacementHub() {
                             placeholder="Search roles, companies, or tech stacks..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:border-brand-500/50 focus:bg-white/10 transition-all outline-none"
+                            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-2xl py-4 pl-12 pr-6 text-sm text-[var(--foreground)] focus:border-brand-500/50 focus:bg-[var(--surface)] transition-all outline-none"
                         />
                     </div>
                     <button className="px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-campus-muted hover:text-white transition-all flex items-center gap-3 text-sm font-bold active:scale-95">
@@ -150,7 +150,7 @@ export default function PlacementHub() {
                                     <button
                                         key={item.id}
                                         onClick={() => setActiveSection(item.id as any)}
-                                        className={`flex items-center justify-between group px-5 py-4 rounded-2xl transition-all ${activeSection === item.id ? 'bg-white/5 text-white' : 'text-campus-muted hover:text-white hover:bg-white/2'}`}
+                                        className={`flex items-center justify-between group px-5 py-4 rounded-2xl transition-all ${activeSection === item.id ? 'bg-[var(--surface)] text-[var(--foreground)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface)]/50'}`}
                                     >
                                         <div className="flex items-center gap-4">
                                             <item.icon size={20} className={activeSection === item.id ? 'text-brand-400' : 'opacity-50'} />
@@ -181,7 +181,7 @@ export default function PlacementHub() {
                                 {/* Active Opportunities Grid (Section 1) */}
                                 <section>
                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                                        <h3 className="text-xl font-black text-white tracking-tight">Personalized Opportunities</h3>
+                                        <h3 className="text-xl font-black text-[var(--foreground)] tracking-tight">Personalized Opportunities</h3>
                                         <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
                                             {['all', 'internship', 'full-time', 'remote'].map(f => (
                                                 <button
@@ -198,53 +198,74 @@ export default function PlacementHub() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         {smartJobs.length > 0 ? smartJobs.map(job => (
                                             <div key={job.id} className="bg-campus-card border border-campus-border rounded-[24px] p-6 hover:border-brand-500/30 hover:shadow-card-hover transition-all flex flex-col group relative overflow-hidden">
-                                                <div className="absolute top-0 right-0 px-4 py-1.5 bg-brand-500 text-white text-[10px] font-black italic rounded-bl-2xl shadow-glow">
-                                                    {job.match_score}% Match
-                                                </div>
+                                                {job.match_score !== undefined && job.match_score > 0 && (
+                                                    <div className="absolute top-0 right-0 px-4 py-1.5 bg-brand-500 text-white text-[10px] font-black italic rounded-bl-2xl shadow-glow">
+                                                        {job.match_score}% Match
+                                                    </div>
+                                                )}
 
                                                 <div className="flex items-start gap-4 mb-6 pt-2">
                                                     <div className="w-14 h-14 rounded-2xl bg-brand-500/10 flex items-center justify-center border border-brand-500/20 group-hover:scale-110 transition-transform">
                                                         <Building2 size={24} className="text-brand-400" />
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-bold text-lg text-white tracking-tight leading-tight">{job.title}</h4>
-                                                        <p className="text-sm font-medium text-campus-muted mt-1">{job.company}</p>
+                                                        <h4 className="font-bold text-lg text-[var(--foreground)] tracking-tight leading-tight">{job.title}</h4>
+                                                        <p className="text-sm font-medium text-[var(--foreground-muted)] mt-1">{job.company_name}</p>
                                                     </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-4 mb-6">
-                                                    <div className="flex items-center gap-2 text-campus-muted">
-                                                        <MapPin size={14} className="text-brand-400" />
-                                                        <span className="text-[11px] font-bold uppercase">{job.location}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-campus-muted">
-                                                        <DollarSign size={14} className="text-emerald-400" />
-                                                        <span className="text-[11px] font-bold uppercase">{job.salary_range}</span>
-                                                    </div>
+                                                    {job.location && (
+                                                        <div className="flex items-center gap-2 text-campus-muted">
+                                                            <MapPin size={14} className="text-brand-400" />
+                                                            <span className="text-[11px] font-bold uppercase">{job.location}</span>
+                                                        </div>
+                                                    )}
+                                                    {job.salary_range && (
+                                                        <div className="flex items-center gap-2 text-campus-muted">
+                                                            <DollarSign size={14} className="text-emerald-400" />
+                                                            <span className="text-[11px] font-bold uppercase">{job.salary_range}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="flex flex-wrap gap-2 mb-8">
-                                                    {job.skills_required.slice(0, 3).map(s => (
+                                                    {(job.skills_required || []).slice(0, 3).map(s => (
                                                         <span key={s} className="px-3 py-1 bg-white/5 border border-white/5 rounded-lg text-[9px] font-bold text-campus-muted uppercase">{s}</span>
                                                     ))}
+                                                    {job.job_type && (
+                                                        <span className="px-3 py-1 bg-brand-500/10 border border-brand-500/20 rounded-lg text-[9px] font-bold text-brand-400 uppercase capitalize">{job.job_type}</span>
+                                                    )}
                                                 </div>
 
                                                 <div className="mt-auto pt-6 border-t border-white/[0.04] flex items-center justify-between">
                                                     <div className="text-[10px] text-campus-muted font-bold uppercase tracking-widest">
-                                                        Posted {new Date(job.posted_date).toLocaleDateString()}
+                                                        Posted {job.created_at ? new Date(job.created_at).toLocaleDateString() : '—'}
                                                     </div>
-                                                    <a href={job.apply_url} target="_blank" rel="noopener noreferrer" className="btn-primary py-3 px-8 rounded-2xl text-xs font-black uppercase tracking-widest shadow-glow hover:scale-105 active:scale-95 transition-all">
-                                                        Intelligence Apply
-                                                    </a>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (job.apply_link) {
+                                                                let url = job.apply_link;
+                                                                if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+                                                                window.open(url, '_blank', 'noopener,noreferrer');
+                                                            } else {
+                                                                alert('No application link provided for this listing');
+                                                            }
+                                                        }}
+                                                        className="btn-primary py-3 px-8 rounded-2xl text-xs font-black uppercase tracking-widest shadow-glow hover:scale-105 active:scale-95 transition-all"
+                                                    >
+                                                        Apply Now
+                                                    </button>
                                                 </div>
                                             </div>
                                         )) : (
                                             <div className="col-span-2 glass-card p-12 text-center">
                                                 <Briefcase size={48} className="mx-auto mb-4 text-campus-muted opacity-20" />
-                                                <p className="text-campus-muted font-bold tracking-tight">No personalized matches found.</p>
+                                                <p className="text-campus-muted font-bold tracking-tight">No jobs posted yet. Add one to get started!</p>
                                             </div>
                                         )}
                                     </div>
+
                                 </section>
                             </div>
                         ) : activeSection === 'jobs' ? (

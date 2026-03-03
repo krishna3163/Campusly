@@ -3,67 +3,85 @@ import { insforge } from '../lib/insforge';
 export interface JobListing {
     id: string;
     title: string;
-    company: string;
+    company_name: string;
     location: string;
-    experience_required: string;
-    salary_range: string;
-    job_type: 'internship' | 'full-time' | 'remote';
-    skills_required: string[];
-    apply_url: string;
-    posted_date: string;
-    source: 'campus' | 'external';
+    description?: string;
+    apply_link?: string;
+    salary_range?: string;
+    job_type?: string;
+    remote?: boolean;
+    branch_eligibility?: string[];
+    skills_required?: string[];
+    is_active?: boolean;
+    created_at?: string;
     match_score?: number;
 }
 
 export const PlacementService = {
     /**
-     * SECTION 1 — Fetch jobs with intelligent ranking
+     * Fetch real jobs from placement_jobs table with optional filters
      */
     async getSmartJobs(filters: {
         skills?: string[];
         role?: string;
         location?: string;
-        type?: 'internship' | 'full-time' | 'remote';
+        type?: string;
         batch?: string;
-    }) {
+    }): Promise<JobListing[]> {
         try {
-            // Invokes Edge Function that proxies several job APIs (Adzuna, Jooble, etc)
-            const { data, error } = await insforge.functions.invoke('fetch-jobs', {
-                body: filters
-            });
+            let query = insforge.database
+                .from('placement_jobs')
+                .select('*')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false });
+
+            if (filters.type === 'remote') {
+                query = query.eq('remote', true);
+            } else if (filters.type === 'internship' || filters.type === 'full-time') {
+                query = query.eq('job_type', filters.type);
+            }
+
+            const { data, error } = await query.limit(50);
             if (error) throw error;
             return (data as JobListing[]) || [];
         } catch (err) {
-            console.error('Job sync failed:', err);
+            console.error('Job fetch failed:', err);
             return [];
         }
     },
 
     /**
-     * Ranking algorithm logic (can be run client-side for immediate sorting)
+     * Ranking algorithm logic — calculates match score based on user profile
      */
     calculateJobScore(job: JobListing, userProfile: any): number {
         let score = 0;
-        
+
         // 1. Skill Match (+10 per skill)
-        const commonSkills = job.skills_required.filter(s => 
-            userProfile.skills?.some((us: string) => us.toLowerCase() === s.toLowerCase())
+        const jobSkills = job.skills_required || [];
+        const userSkills: string[] = userProfile.skills || [];
+        const commonSkills = jobSkills.filter(s =>
+            userSkills.some((us: string) => us.toLowerCase() === s.toLowerCase())
         );
         score += commonSkills.length * 10;
 
-        // 2. Location Match (+15)
-        if (job.location.toLowerCase().includes(userProfile.location_preference?.toLowerCase() || '')) {
+        // 2. Branch Match (+15)
+        const eligibility = job.branch_eligibility || [];
+        if (eligibility.length === 0 || eligibility.some(b =>
+            b.toLowerCase() === (userProfile.branch || '').toLowerCase()
+        )) {
             score += 15;
         }
 
-        // 3. Batch/Graduation Match (+10)
-        if (job.title.toLowerCase().includes(userProfile.graduation_year?.toString() || '')) {
+        // 3. Placement Status Match (+10)
+        if (userProfile.placement_status === 'seeking') {
             score += 10;
         }
 
-        // 4. Recency Weight (+5 if within 48h)
-        const ageInDays = (Date.now() - new Date(job.posted_date).getTime()) / (1000 * 60 * 60 * 24);
-        if (ageInDays <= 2) score += 5;
+        // 4. Recency Weight (+5 if within 7 days)
+        if (job.created_at) {
+            const ageInDays = (Date.now() - new Date(job.created_at).getTime()) / (1000 * 60 * 60 * 24);
+            if (ageInDays <= 7) score += 5;
+        }
 
         return score;
     },

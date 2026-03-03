@@ -32,6 +32,16 @@ const LeaderboardPage = lazy(() => import('./pages/leaderboard/LeaderboardPage')
 const GroupSettingsPage = lazy(() => import('./pages/chat/GroupSettingsPage'));
 const ChatDiscoveryPage = lazy(() => import('./pages/chat/ChatDiscoveryPage'));
 const ErrorDashboard = lazy(() => import('./pages/admin/ErrorDashboard'));
+const PostDetailPage = lazy(() => import('./pages/campus/PostDetailPage'));
+const PostComposerPage = lazy(() => import('./pages/campus/PostComposerPage'));
+const StoryComposerPage = lazy(() => import('./pages/campus/StoryComposerPage'));
+const ExplorePage = lazy(() => import('./pages/campus/ExplorePage'));
+const ReelComposerPage = lazy(() => import('./pages/campus/ReelComposerPage'));
+const LanguageSettingsPage = lazy(() => import('./pages/settings/LanguageSettingsPage'));
+const BlockedUsersPage = lazy(() => import('./pages/settings/BlockedUsersPage'));
+const AccountDeletionPage = lazy(() => import('./pages/settings/AccountDeletionPage'));
+const NotificationHistoryPage = lazy(() => import('./pages/settings/NotificationHistoryPage'));
+const ServerCreationPage = lazy(() => import('./pages/community/ServerCreationPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
@@ -114,8 +124,13 @@ export default function App() {
               <Route path=":chatId" element={<ChatPage />} />
               <Route path=":chatId/settings" element={<GroupSettingsPage />} />
             </Route>
-            <Route path="feed" element={<CampusFeedPage />} />
+            <Route path="feed" element={<Navigate to="/app/campus" replace />} />
             <Route path="campus" element={<CampusFeedPage />} />
+            <Route path="campus/explore" element={<ExplorePage />} />
+            <Route path="campus/reel/new" element={<ReelComposerPage />} />
+            <Route path="campus/post/new" element={<PostComposerPage />} />
+            <Route path="campus/post/:postId" element={<PostDetailPage />} />
+            <Route path="campus/story/new" element={<StoryComposerPage />} />
             <Route path="study" element={<StudyDashboard />} />
             <Route path="placement" element={<PlacementHub />} />
             <Route path="profile" element={<ProfilePage />} />
@@ -132,6 +147,11 @@ export default function App() {
             {/* Settings sub-routes */}
             <Route path="settings/developer" element={<DeveloperPage />} />
             <Route path="settings/bug-report" element={<BugReportPage />} />
+            <Route path="settings/language" element={<LanguageSettingsPage />} />
+            <Route path="settings/blocked" element={<BlockedUsersPage />} />
+            <Route path="settings/delete-account" element={<AccountDeletionPage />} />
+            <Route path="settings/notifications" element={<NotificationHistoryPage />} />
+            <Route path="community/create" element={<ServerCreationPage />} />
           </Route>
 
           {/* Redirect */}

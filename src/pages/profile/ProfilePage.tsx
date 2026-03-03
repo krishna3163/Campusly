@@ -138,7 +138,7 @@ export default function ProfilePage() {
                 .update({
                     display_name: editData.display_name,
                     bio: editData.bio,
-                    metadata: { ...(user.profile as any)?.metadata, department: editData.department }
+                    branch: editData.department || undefined
                 })
                 .eq('id', user.id);
 

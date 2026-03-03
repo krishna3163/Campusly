@@ -267,7 +267,8 @@ export interface StatusStory {
 }
 
 export interface StoryMetadata {
-    type?: string;
+    bg_color?: string;
+    type?: 'vibe_check';
     emoji?: string;
     stickers?: StorySticker[];
     drawing_data?: any;
@@ -445,11 +446,15 @@ export interface Post {
 export interface Comment {
     id: string;
     post_id: string;
-    user_id: string;
+    author_id: string;
+    parent_id?: string | null;
+    upvotes?: number;
     content: string;
     created_at: string;
     // Client enrichment
     author?: UserProfile;
+    replies?: Comment[];
+    user_reaction?: string | null;
 }
 
 // ===== STUDY =====

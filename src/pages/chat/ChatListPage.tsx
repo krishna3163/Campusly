@@ -19,7 +19,14 @@ import {
     Search,
     SlidersHorizontal,
     User as UserIcon,
-    Plus
+    Plus,
+    ChevronRight,
+    Shield,
+    UserMinus,
+    ArrowLeft,
+    Share2,
+    Settings,
+    Hash,
 } from 'lucide-react';
 import { RankingEngine } from '../../services/rankingService';
 import { WhatsappService } from '../../services/whatsappService';
@@ -328,7 +335,17 @@ export default function ChatListPage() {
         <div className="h-full flex flex-col bg-white relative overflow-hidden font-sans">
             {/* iOS Header */}
             <header className="ios-header safe-top px-4 py-3">
-                <button className="ios-btn-blue text-[17px]">Edit</button>
+                <div className="relative group">
+                    <button className="ios-btn-blue text-[17px]">New +</button>
+                    <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-[#E5E5EA] overflow-hidden z-50 min-w-[160px] hidden group-focus-within:block group-hover:block">
+                        <button onClick={() => setShowNewChat('broadcast')} className="w-full px-4 py-3 text-left text-[15px] text-black hover:bg-[#F2F2F7] transition-colors border-b border-[#E5E5EA]/50 flex items-center gap-3">
+                            <BroadcastIcon size={16} className="text-[#007AFF]" /> Broadcast
+                        </button>
+                        <button onClick={() => setShowNewChat('channel')} className="w-full px-4 py-3 text-left text-[15px] text-black hover:bg-[#F2F2F7] transition-colors flex items-center gap-3">
+                            <Hash size={16} className="text-[#007AFF]" /> Channel
+                        </button>
+                    </div>
+                </div>
                 <h1 className="text-[17px] font-bold text-black">Messages</h1>
                 <button
                     onClick={() => setShowNewChat('private')}
@@ -555,6 +572,28 @@ function NewChatModal({ onClose, userId, onCreated, type }: { onClose: () => voi
                 onCreated();
                 onClose();
                 navigate(`/app/chats/${channel.id}`);
+            } else if (type === 'broadcast') {
+                if (!name.trim()) throw new Error('Enter a name for the broadcast list');
+                const { data: convB, error: errorB } = await insforge.database
+                    .from('conversations')
+                    .insert({
+                        type: 'broadcast',
+                        name: name.trim(),
+                        created_by: userId,
+                        visibility: 'private'
+                    }).select().single();
+
+                if (errorB) throw errorB;
+                if (convB) {
+                    const members = [
+                        { conversation_id: (convB as any).id, user_id: userId, role: 'owner' },
+                        ...selectedUsers.map(u => ({ conversation_id: (convB as any).id, user_id: u.id, role: 'member' }))
+                    ];
+                    await insforge.database.from('conversation_members').insert(members);
+                    onCreated();
+                    onClose();
+                    navigate(`/app/chats/${(convB as any).id}`);
+                }
             } else {
                 if (!name.trim()) throw new Error('Enter a name for the group');
 

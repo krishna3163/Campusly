@@ -3,7 +3,7 @@ import { uploadToStorage, validateFile } from './mediaUploadService';
 
 export const StatusService = {
     // --- Section 9: Status Photo Upload Fix ---
-    async uploadStatus(userId: string, campusId: string, file: File, caption?: string) {
+    async uploadStatus(userId: string, campusId: string, file: File, caption?: string, metadata?: any) {
         // ... media upload logic ...
         const mediaUrl = await uploadToStorage('media', `statuses/${userId}/${Date.now()}.${file.name.split('.').pop()}`, file);
         if (!mediaUrl) throw new Error('Mesh cloud rejection');
@@ -16,6 +16,7 @@ export const StatusService = {
                 type: file.type.startsWith('image/') ? 'image' : 'video',
                 content: caption || '',
                 media_url: mediaUrl,
+                metadata: metadata || {},
                 expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
                 visibility: 'contacts'
             }).select().single();
@@ -39,31 +40,45 @@ export const StatusService = {
         return data;
     },
 
-    async getFriendStories(userId: string) {
+    async getCampusStories(campusId: string) {
         const now = new Date().toISOString();
-        const { data: friends } = await insforge.database
-            .from('friendships')
-            .select('user_id_1, user_id_2')
-            .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
-
-        const friendIds = friends?.map(f => f.user_id_1 === userId ? f.user_id_2 : f.user_id_1) || [];
-        friendIds.push(userId);
-
         const { data: stories, error } = await insforge.database
             .from('stories')
             .select('*, user:profiles(id, display_name, avatar_url)')
-            .in('user_id', friendIds)
+            .eq('campus_id', campusId)
             .gt('expires_at', now)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
+        // Group by user
         return stories?.reduce((acc: any, story: any) => {
             const uid = story.user_id;
-            if (!acc[uid]) acc[uid] = [];
-            acc[uid].push(story);
+            if (!acc[uid]) acc[uid] = {
+                user: story.user,
+                items: []
+            };
+            acc[uid].items.push(story);
             return acc;
         }, {});
+    },
+
+    async getFriendStories(userId: string) {
+        // For simplicity in this campus app, we fetch active stories from the same campus
+        // or we could fetch based on a 'friends' relationship.
+        // Given ProfileViewPage uses it as getFriendStories(user.id), 
+        // and expects stories grouped by userId.
+
+        const { data: profile } = await insforge.database
+            .from('profiles')
+            .select('campus_id')
+            .eq('id', userId)
+            .single();
+
+        if (!profile?.campus_id) return { data: {}, error: null };
+
+        const stories = await this.getCampusStories(profile.campus_id);
+        return { data: stories, error: null };
     },
 
     async markViewed(userId: string, storyId: string) {

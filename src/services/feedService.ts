@@ -1,7 +1,7 @@
 import { insforge } from '../lib/insforge';
 
 export const FeedService = {
-    async getFeed(campusId: string, category?: string, limit = 10, offset = 0) {
+    async getFeed(campusId: string, category?: string, limit = 10, offset = 0, hashtag?: string) {
         try {
             if (!campusId) return { data: [], error: 'Campus ID missing' };
 
@@ -12,6 +12,10 @@ export const FeedService = {
 
             if (category && category !== 'all') {
                 query = query.eq('category', category);
+            }
+
+            if (hashtag) {
+                query = query.contains('hashtags', [hashtag.replace('#', '').toLowerCase()]);
             }
 
             const { data, error } = await query
@@ -27,6 +31,19 @@ export const FeedService = {
         } catch (err) {
             console.error('Critical Feed Failure:', err);
             return { data: [], error: err };
+        }
+    },
+
+    async getPost(postId: string) {
+        try {
+            const { data, error } = await insforge.database
+                .from('posts')
+                .select('*, author:profiles!user_id(*), original_post:posts!original_post_id(*, author:profiles!user_id(*))')
+                .eq('id', postId)
+                .single();
+            return { data, error };
+        } catch (err) {
+            return { data: null, error: err };
         }
     },
 
@@ -96,6 +113,30 @@ export const FeedService = {
         }
     },
 
+    async reactComment(userId: string, commentId: string, type: string = 'like') {
+        try {
+            const { data: existing } = await insforge.database
+                .from('comment_reactions')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('comment_id', commentId)
+                .maybeSingle();
+
+            if (existing) {
+                // For now, only toggle like
+                await insforge.database.from('comment_reactions').delete().eq('id', existing.id);
+                await insforge.database.rpc('decrement_comment_count', { comment_id: commentId, field_name: 'upvotes' });
+                return { active: false, error: null };
+            } else {
+                await insforge.database.from('comment_reactions').insert({ user_id: userId, comment_id: commentId, type });
+                await insforge.database.rpc('increment_comment_count', { comment_id: commentId, field_name: 'upvotes' });
+                return { active: true, error: null };
+            }
+        } catch (err) {
+            return { error: err };
+        }
+    },
+
     async repost(userId: string, campusId: string, originalPostId: string, quote?: string) {
         try {
             if (quote) {
@@ -116,17 +157,18 @@ export const FeedService = {
         }
     },
 
-    async addComment(userId: string, postId: string, content: string) {
+    async addComment(userId: string, postId: string, content: string, parentId?: string) {
         try {
             const { data, error } = await insforge.database
                 .from('comments')
                 .insert({
                     post_id: postId,
-                    user_id: userId,
+                    author_id: userId,
+                    parent_id: parentId || null,
                     content,
                     created_at: new Date().toISOString()
                 })
-                .select('*, author:profiles!user_id(*)')
+                .select('*, author:profiles!author_id(*)')
                 .single();
 
             if (data && !error) {
@@ -138,12 +180,36 @@ export const FeedService = {
         }
     },
 
-    async getComments(postId: string) {
-        return insforge.database
+    async getComments(postId: string, userId?: string) {
+        let query = insforge.database
             .from('comments')
-            .select('*, author:profiles!user_id(*)')
+            .select('*, author:profiles!author_id(*)');
+
+        if (userId) {
+            // This is a bit complex for a single query with maybeSingle on join
+            // In postgREST we might use a supplemental select or just fetch it
+        }
+
+        const { data, error } = await query
             .eq('post_id', postId)
             .order('created_at', { ascending: true });
+
+        if (userId && data) {
+            const { data: reactions } = await insforge.database
+                .from('comment_reactions')
+                .select('comment_id, type')
+                .eq('user_id', userId)
+                .in('comment_id', data.map(c => c.id));
+
+            if (reactions) {
+                data.forEach(c => {
+                    const reaction = reactions.find(r => r.comment_id === c.id);
+                    if (reaction) c.user_reaction = reaction.type;
+                });
+            }
+        }
+
+        return { data, error };
     },
 
     async createPoll(userId: string, campusId: string, content: string, options: string[]) {
@@ -167,7 +233,7 @@ export const FeedService = {
         }
     },
 
-    async votePoll(postId: string, userId: string, optionIndex: number) {
+    async votePoll(postId: string, userId: string, optionIndex: number | number[]) {
         try {
             const { data: poll } = await insforge.database
                 .from('polls')
@@ -177,8 +243,8 @@ export const FeedService = {
             if (!poll) throw new Error('Poll not found');
 
             const votes = typeof poll.votes === 'string' ? JSON.parse(poll.votes) : (poll.votes || {});
-            if (votes[userId]) throw new Error('Already voted');
 
+            // Allow multiple votes or replace existing
             votes[userId] = optionIndex;
 
             const { error } = await insforge.database
@@ -198,5 +264,41 @@ export const FeedService = {
             .select('*')
             .eq('post_id', postId)
             .maybeSingle();
+    },
+
+    async trackShare(postId: string) {
+        return insforge.database.rpc('increment_share_count', { post_id: postId });
+    },
+
+    async getTrendingHashtags(limit = 10) {
+        try {
+            const { data, error } = await insforge.database
+                .from('posts')
+                .select('hashtags')
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+            if (error) return { data: [], error };
+
+            const counts: Record<string, number> = {};
+            data?.forEach(post => {
+                const hashtags = post.hashtags;
+                if (Array.isArray(hashtags)) {
+                    hashtags.forEach((tag: string) => {
+                        const t = tag.startsWith('#') ? tag : `#${tag}`;
+                        counts[t] = (counts[t] || 0) + 1;
+                    });
+                }
+            });
+
+            const trending = Object.entries(counts)
+                .map(([tag, count]) => ({ tag, count: `${count} posts` }))
+                .sort((a, b) => parseInt(b.count) - parseInt(a.count))
+                .slice(0, limit);
+
+            return { data: trending, error: null };
+        } catch (err) {
+            return { data: [], error: err };
+        }
     }
 };

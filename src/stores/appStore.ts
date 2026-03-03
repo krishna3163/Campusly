@@ -100,7 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     setNotificationPermission: (notificationPermission) => set({ notificationPermission }),
 
     // Theme Management
-    theme: (localStorage.getItem('campusly_theme') as 'light' | 'dark') || 'light',
+    theme: (localStorage.getItem('campusly_theme') as 'light' | 'dark') || 'dark',
     setTheme: (theme) => {
         set({ theme });
         localStorage.setItem('campusly_theme', theme);
@@ -120,4 +120,7 @@ if (savedExamMode) {
 const savedTheme = localStorage.getItem('campusly_theme') as 'light' | 'dark';
 if (savedTheme) {
     document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+} else {
+    // Default to dark mode if no theme is saved
+    document.documentElement.classList.toggle('dark', true);
 }

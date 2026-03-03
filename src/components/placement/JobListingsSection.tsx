@@ -1,24 +1,33 @@
 import { useState, useEffect } from 'react';
 import { insforge } from '../../lib/insforge';
-import { Building2, ExternalLink } from 'lucide-react';
+import { Building2, ExternalLink, MapPin, Briefcase, Trash2, Pencil, X } from 'lucide-react';
+import { useAppStore } from '../../stores/appStore';
+import JobListingForm from './JobListingForm';
+import { JobService } from '../../services/JobService';
 
 interface Job {
     id: string;
+    campus_id: string | null;
+    posted_by?: string;
     title: string;
     company_name: string;
+    location?: string;
     description?: string;
     apply_link?: string;
+    salary_range?: string;
+    job_type?: string;
+    remote?: boolean;
     branch_eligibility?: string[];
-    start_date?: string;
-    last_date?: string;
-    experience_required?: string;
+    skills_required?: string[];
+    is_active?: boolean;
     created_at: string;
 }
 
-export default function JobListingsSection({ campusId }: { userId?: string; campusId?: string }) {
+export default function JobListingsSection({ userId, campusId }: { userId?: string; campusId?: string }) {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
-    const BATCH = 20;
+    const [editingJob, setEditingJob] = useState<Job | null>(null);
+    const { showToast } = useAppStore();
 
     useEffect(() => {
         loadJobs();
@@ -29,7 +38,7 @@ export default function JobListingsSection({ campusId }: { userId?: string; camp
         try {
             let query = insforge.database.from('placement_jobs').select('*').eq('is_active', true).order('created_at', { ascending: false });
             if (campusId) query = query.eq('campus_id', campusId);
-            const { data } = await query.range(0, BATCH - 1);
+            const { data } = await query.limit(20);
             setJobs((data as Job[]) || []);
         } catch {
             setJobs([]);
@@ -38,12 +47,34 @@ export default function JobListingsSection({ campusId }: { userId?: string; camp
         }
     };
 
-    const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString() : '—';
+    const handleDelete = async (jobId: string) => {
+        if (!confirm('Are you sure you want to delete this job listing?')) return;
+        try {
+            const { error } = await JobService.deleteJob(jobId);
+            if (error) throw new Error(error);
+            setJobs(prev => prev.filter(j => j.id !== jobId));
+            showToast('Job listing removed', 'success');
+        } catch {
+            showToast('Failed to delete', 'error');
+        }
+    };
+
+    const handleApply = (job: Job) => {
+        if (job.apply_link) {
+            let url = job.apply_link;
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } else {
+            showToast('No application link provided for this listing', 'info');
+        }
+    };
 
     if (loading) {
         return (
             <div className="space-y-4 animate-fade-in">
-                <h3 className="text-xl font-bold">Job Listings</h3>
+                <h3 className="text-xl font-bold text-[var(--foreground)]">Job Listings</h3>
                 <div className="grid gap-4">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="glass-card p-6 animate-pulse">
@@ -58,7 +89,7 @@ export default function JobListingsSection({ campusId }: { userId?: string; camp
 
     return (
         <div className="space-y-6 animate-fade-in">
-            <h3 className="text-xl font-bold">Job Listings</h3>
+            <h3 className="text-xl font-bold text-[var(--foreground)]">Job Listings</h3>
             {jobs.length === 0 ? (
                 <div className="glass-card p-12 text-center text-campus-muted">
                     <Building2 size={48} className="mx-auto mb-4 opacity-50" />
@@ -67,32 +98,89 @@ export default function JobListingsSection({ campusId }: { userId?: string; camp
             ) : (
                 <div className="grid gap-4">
                     {jobs.map(job => (
-                        <div key={job.id} className="glass-card p-6 hover:bg-white/[0.06] transition-all rounded-2xl border border-campus-border/40">
-                            <div className="flex justify-between items-start gap-4 mb-2">
-                                <div>
-                                    <h4 className="font-bold text-white text-lg">{job.title}</h4>
-                                    <p className="text-sm text-campus-muted">{job.company_name}</p>
+                        <div key={job.id} className="glass-card p-6 hover:bg-[var(--surface)] transition-all rounded-2xl border border-[var(--border)]">
+                            <div className="flex justify-between items-start gap-4 mb-3">
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-[var(--foreground)] text-lg">{job.title}</h4>
+                                    <p className="text-sm text-[var(--foreground-muted)]">{job.company_name}</p>
                                 </div>
-                                {job.apply_link && (
-                                    <a href={job.apply_link} target="_blank" rel="noopener noreferrer" className="btn-secondary py-2 px-4 text-sm flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        onClick={() => handleApply(job)}
+                                        className="btn-primary py-2 px-5 text-sm flex items-center gap-2 rounded-xl"
+                                    >
                                         <ExternalLink size={14} /> Apply
-                                    </a>
+                                    </button>
+
+                                    {userId && (job.posted_by === userId || !job.posted_by) && (
+                                        <div className="flex items-center gap-1 ml-2">
+                                            <button
+                                                onClick={() => setEditingJob(job)}
+                                                className="p-2 text-brand-400 hover:bg-brand-500/10 rounded-xl transition-all"
+                                                title="Edit listing"
+                                            >
+                                                <Pencil size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(job.id)}
+                                                className="p-2 text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                                                title="Delete listing"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {job.description && <p className="text-sm text-[var(--foreground-muted)] line-clamp-2 mb-3">{job.description}</p>}
+
+                            <div className="flex flex-wrap items-center gap-3 mb-3">
+                                {job.location && (
+                                    <div className="flex items-center gap-1 text-[var(--foreground-muted)]">
+                                        <MapPin size={12} className="text-brand-400" />
+                                        <span className="text-[11px] font-bold">{job.location}</span>
+                                    </div>
+                                )}
+                                {job.job_type && (
+                                    <span className="px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-400 text-[10px] font-bold capitalize">{job.job_type}</span>
+                                )}
+                                {job.remote && (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">Remote</span>
+                                )}
+                                {job.salary_range && (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold">{job.salary_range}</span>
                                 )}
                             </div>
-                            {job.description && <p className="text-sm text-campus-muted line-clamp-2 mb-3">{job.description}</p>}
-                            <div className="flex flex-wrap gap-2">
+
+                            <div className="flex flex-wrap gap-1.5">
                                 {job.branch_eligibility?.slice(0, 5).map(t => (
-                                    <span key={t} className="px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-400 text-[10px] font-bold">{t}</span>
+                                    <span key={t} className="px-2 py-0.5 rounded-full bg-white/5 text-campus-muted text-[10px] font-bold">{t}</span>
                                 ))}
-                                {job.experience_required && <span className="px-2 py-0.5 rounded-full bg-white/5 text-campus-muted text-[10px]">{job.experience_required}</span>}
+                                {job.skills_required?.slice(0, 4).map(s => (
+                                    <span key={s} className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-bold">{s}</span>
+                                ))}
                             </div>
-                            <div className="flex gap-4 mt-3 text-[11px] text-campus-muted">
-                                <span>Start: {formatDate(job.start_date)}</span>
-                                <span>Last: {formatDate(job.last_date)}</span>
+
+                            <div className="mt-3 text-[10px] text-[var(--foreground-muted)]">
+                                Posted {new Date(job.created_at).toLocaleDateString()}
                             </div>
                         </div>
                     ))}
                 </div>
+            )}
+
+            {editingJob && (
+                <JobListingForm
+                    userId={userId || ''}
+                    campusId={campusId}
+                    editJob={editingJob}
+                    onClose={() => setEditingJob(null)}
+                    onSaved={() => {
+                        setEditingJob(null);
+                        loadJobs();
+                    }}
+                />
             )}
         </div>
     );

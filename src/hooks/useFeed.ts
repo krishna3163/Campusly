@@ -3,7 +3,7 @@ import { FeedService } from '../services/feedService';
 import { Post } from '../types';
 import { useAppStore } from '../stores/appStore';
 
-export function useFeed(campusId: string, category: string = 'all') {
+export function useFeed(campusId: string, category: string = 'all', hashtag?: string) {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export function useFeed(campusId: string, category: string = 'all') {
             const currentPage = isRefresh ? 0 : page;
             const offset = currentPage * 10;
 
-            const { data, error: fetchErr } = await FeedService.getFeed(campusId, category, 10, offset);
+            const { data, error: fetchErr } = await FeedService.getFeed(campusId, category, 10, offset, hashtag);
 
             if (fetchErr) throw new Error(typeof fetchErr === 'string' ? fetchErr : 'Failed to fetch feed');
 
@@ -54,7 +54,7 @@ export function useFeed(campusId: string, category: string = 'all') {
             fetchLock.current = false;
             setLoading(false);
         }
-    }, [campusId, category, page, showToast]);
+    }, [campusId, category, page, showToast, hashtag]);
 
     const refresh = () => {
         setPage(0);

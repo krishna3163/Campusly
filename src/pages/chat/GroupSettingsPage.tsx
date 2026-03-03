@@ -21,6 +21,7 @@ import { useUser } from '@insforge/react';
 import type { Conversation } from '../../types';
 import { GroupService } from '../../services/GroupService';
 import { ActivityLogService } from '../../services/ActivityLogService';
+import { UserService } from '../../services/userService';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function GroupSettingsPage() {
@@ -34,6 +35,10 @@ export default function GroupSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [currentUserRole, setCurrentUserRole] = useState<'owner' | 'admin' | 'member'>('member');
     const [isUpdating, setIsUpdating] = useState(false);
+    const [showAddMember, setShowAddMember] = useState(false);
+    const [addMemberQuery, setAddMemberQuery] = useState('');
+    const [addMemberResults, setAddMemberResults] = useState<any[]>([]);
+    const [searchingMembers, setSearchingMembers] = useState(false);
 
     useEffect(() => {
         if (!chatId) return;
@@ -135,6 +140,30 @@ export default function GroupSettingsPage() {
             navigate('/app/chats');
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const handleRemoveMember = async (targetUserId: string) => {
+        if (!chatId || !user?.id) return;
+        if (!window.confirm('Remove this member?')) return;
+        setIsUpdating(true);
+        try {
+            const { error } = await insforge.database
+                .from('conversation_members')
+                .delete()
+                .eq('conversation_id', chatId)
+                .eq('user_id', targetUserId);
+
+            if (error) throw error;
+
+            await ActivityLogService.logAction(chatId, 'Removed member', user.id, targetUserId);
+            // RPC call to decrement member count
+            await insforge.database.rpc('decrement_member_count', { convo_id: chatId });
+            await loadData();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -272,7 +301,12 @@ export default function GroupSettingsPage() {
                         <div className="px-5 mb-2 ml-1 flex justify-between items-end">
                             <h3 className="text-[13px] text-[#6E6E73] font-medium uppercase tracking-tight">Members • {members.length}</h3>
                             {canManageInfo && (
-                                <button className="text-[13px] text-[#007AFF] font-semibold">Add People</button>
+                                <button
+                                    onClick={() => setShowAddMember(true)}
+                                    className="text-[13px] text-[#007AFF] font-semibold"
+                                >
+                                    Add People
+                                </button>
                             )}
                         </div>
                         <div className="bg-white border-y border-[#E5E5EA] divide-y divide-[#E5E5EA]">
@@ -312,7 +346,7 @@ export default function GroupSettingsPage() {
                                                     <UserMinus size={18} />
                                                 </button>
                                             )}
-                                            <button className="p-2 text-[#FF3B30]">
+                                            <button onClick={() => handleRemoveMember(member.user_id)} className="p-2 text-[#FF3B30]">
                                                 <Trash2 size={18} />
                                             </button>
                                         </div>
@@ -345,6 +379,95 @@ export default function GroupSettingsPage() {
                     </section>
                 </div>
             </div>
+
+            {/* Add Member Modal */}
+            <AnimatePresence>
+                {showAddMember && (
+                    <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={() => { setShowAddMember(false); setAddMemberQuery(''); setAddMemberResults([]); }}>
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="w-full max-w-[430px] bg-[#F2F2F7] rounded-t-[20px] overflow-hidden flex flex-col h-[60vh]"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="w-10 h-1.5 bg-[#BCBCC0] rounded-full mx-auto my-3" />
+                            <div className="px-5 py-3 bg-white border-b border-[#E5E5EA] flex items-center justify-between">
+                                <button onClick={() => { setShowAddMember(false); setAddMemberQuery(''); setAddMemberResults([]); }} className="text-[#007AFF] text-[17px]">Cancel</button>
+                                <h3 className="text-[17px] font-bold">Add People</h3>
+                                <div className="w-16" />
+                            </div>
+                            <div className="px-4 py-3 bg-white border-b border-[#E5E5EA]">
+                                <div className="relative">
+                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8E93]" />
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Search by name..."
+                                        value={addMemberQuery}
+                                        onChange={async (e) => {
+                                            const q = e.target.value;
+                                            setAddMemberQuery(q);
+                                            if (q.trim().length > 1) {
+                                                setSearchingMembers(true);
+                                                const { data } = await UserService.searchProfiles(q);
+                                                // Filter out existing members
+                                                const memberIds = new Set(members.map(m => m.user_id));
+                                                setAddMemberResults((data || []).filter((u: any) => !memberIds.has(u.id)));
+                                                setSearchingMembers(false);
+                                            } else {
+                                                setAddMemberResults([]);
+                                            }
+                                        }}
+                                        className="w-full bg-[#F2F2F7] pl-9 pr-4 py-2.5 rounded-xl text-[15px] border-none outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
+                                {searchingMembers && <p className="text-center py-6 text-[13px] text-[#8E8E93]">Searching...</p>}
+                                {!searchingMembers && addMemberQuery.trim().length > 1 && addMemberResults.length === 0 && (
+                                    <p className="text-center py-6 text-[13px] text-[#8E8E93]">No students found.</p>
+                                )}
+                                {addMemberResults.map(u => (
+                                    <button
+                                        key={u.id}
+                                        onClick={async () => {
+                                            const { error } = await insforge.database.from('conversation_members').insert({
+                                                conversation_id: chatId,
+                                                user_id: u.id,
+                                                role: 'member'
+                                            });
+                                            if (!error) {
+                                                await insforge.database.rpc('increment_member_count', { convo_id: chatId });
+                                                loadData();
+                                                // Remove from results
+                                                setAddMemberResults(prev => prev.filter(r => r.id !== u.id));
+                                            }
+                                        }}
+                                        className="w-full px-5 py-3 flex items-center gap-3 active:bg-[#E5E5EA] transition-colors border-b border-[#E5E5EA]"
+                                    >
+                                        <div className="w-10 h-10 rounded-full bg-[#F2F2F7] overflow-hidden border border-black/5 flex items-center justify-center">
+                                            {u.avatar_url ? (
+                                                <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                                            ) : (
+                                                <div className="w-full h-full bg-[#E5E5EA] flex items-center justify-center text-lg font-bold text-[#8E8E93]">
+                                                    {u.display_name?.charAt(0)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0 text-left">
+                                            <p className="text-[17px] font-semibold text-black truncate">{u.display_name}</p>
+                                            <p className="text-[13px] text-[#8E8E93]">{u.branch} • Sem {u.semester}</p>
+                                        </div>
+                                        <UserPlus size={20} className="text-[#007AFF] shrink-0" />
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

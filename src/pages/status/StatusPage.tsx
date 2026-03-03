@@ -34,7 +34,7 @@ export default function StatusPage() {
     // UI State
     const [showCamera, setShowCamera] = useState((location.state as any)?.openCamera || false);
     const [showPrivacy, setShowPrivacy] = useState(false);
-    const [capturedFile, setCapturedFile] = useState<{ file: File; type: 'image' | 'video' } | null>(null);
+    const [capturedFile, setCapturedFile] = useState<{ file: File | null; type: 'image' | 'video' | 'text' } | null>(null);
 
     useEffect(() => {
         if (viewUserId) setViewingUser(viewUserId);
@@ -233,10 +233,22 @@ export default function StatusPage() {
                             setCapturedFile(null);
                             setShowCamera(false);
                         }}
-                        onPost={() => {
-                            showToast('Status Uploaded!', 'success');
-                            setCapturedFile(null);
-                            setShowCamera(false);
+                        onPost={async (storyData) => {
+                            try {
+                                const campusId = (user?.profile as any)?.campus_id || '00000000-0000-0000-0000-000000000000';
+                                if (capturedFile.type === 'text') {
+                                    await StatusService.postText(user.id, campusId, storyData.content);
+                                } else if (capturedFile.file) {
+                                    await StatusService.uploadStatus(user.id, campusId, capturedFile.file, storyData.content, storyData.metadata);
+                                }
+                                showToast('Status Uploaded!', 'success');
+                                setCapturedFile(null);
+                                setShowCamera(false);
+                                window.location.reload();
+                            } catch (err) {
+                                console.error(err);
+                                showToast('Upload failed', 'error');
+                            }
                         }}
                     />
                 )}

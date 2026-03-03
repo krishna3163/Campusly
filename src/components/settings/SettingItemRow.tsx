@@ -58,9 +58,12 @@ export function SettingItemRow({ categoryId, item, isLast }: SettingItemProps) {
         }
 
         if (categoryId === 'appearance' && item.id === 'theme') {
-            const themeVal = value.toLowerCase();
+            const themeVal = (value as string).toLowerCase();
             if (themeVal === 'light' || themeVal === 'dark') {
                 setTheme(themeVal);
+            } else if (themeVal === 'system') {
+                // Fallback to dark if system is chosen but not fully implemented
+                setTheme('dark');
             }
         }
 
