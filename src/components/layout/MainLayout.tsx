@@ -63,15 +63,7 @@ export default function MainLayout() {
                 <Toast />
             </main>
 
-            {/* Global FAB */}
-            {!examMode && (
-                <button
-                    onClick={() => setComposerOpen(true)}
-                    className="fixed bottom-[88px] right-6 w-14 h-14 bg-[#007AFF] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-all z-[90]"
-                >
-                    <Plus size={32} strokeWidth={2.5} />
-                </button>
-            )}
+
 
             {/* iOS Bottom Tab Bar */}
             {!isChatScreen && (
